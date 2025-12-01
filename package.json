@@ -1,6 +1,6 @@
 {
   "name": "zogjs",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "MiniVue: A minimal reactive framework inspired by Vue.js",
   
   "type": "module", 

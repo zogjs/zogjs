@@ -4,9 +4,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>zog.js | The Minimalist Reactive Library</title>
+    <title>Zog.js | The Minimalist Reactive JavaScript Library</title>
+    <meta name="description"
+        content="Zog.js - Ultra lightweight reactive library under 7kb. Vue-inspired reactivity with modern JavaScript. Perfect for fast, efficient web applications.">
+    <meta name="keywords"
+        content="reactive library, javascript, vue, minimalist, lightweight, web development, frontend">
+    <meta name="author" content="zog.js">
+    <meta property="og:title" content="zog.js | The Minimalist Reactive Library">
+    <meta property="og:description"
+        content="Ultra lightweight reactive library under 7kb. Vue-inspired reactivity with modern JavaScript.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://zogjs.github.io">
+    <meta property="og:image" content="https://zogjs.github.io/og-image.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="zog.js | The Minimalist Reactive Library">
+    <meta name="twitter:description"
+        content="Ultra lightweight reactive library under 7kb. Vue-inspired reactivity with modern JavaScript.">
+
+    <!-- Font Awesome محلی -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* تمام استایل‌های قبلی بدون تغییر */
         :root {
             --primary: #4f46e5;
             --primary-dark: #3730a3;
@@ -492,39 +510,32 @@
             }
         }
 
-
         /* --- DEMO SPECIFIC STYLES --- */
 
         /* Radio Group Layout Fix */
         .radio-group label {
             display: flex;
-            /* Make sure radio/checkbox and label text align */
             align-items: center;
             font-weight: 400;
-            /* Less heavy font for internal labels */
             cursor: pointer;
         }
 
         /* Input Range Styling */
         input[type="range"] {
             padding: 0;
-            /* Remove padding for range inputs */
             height: 25px;
             cursor: pointer;
         }
 
         /* Dynamic Box Enhancements */
         .dynamic-box {
-            /* ... existing styles ... */
             transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-            /* Smoother transition */
         }
 
         /* Dynamic Class Binding Styles */
         .active-border {
             border: 4px dashed var(--secondary) !important;
             box-shadow: 0 0 0 8px rgba(249, 115, 22, 0.2);
-            /* Ring effect */
         }
 
         /* Conditional Status Styles (for userAge demo) */
@@ -540,29 +551,22 @@
 
         .status-minor {
             background-color: #fee2e2;
-            /* Red-100 */
             color: #ef4444;
-            /* Red-500 */
         }
 
         .status-teen {
             background-color: #fef3c7;
-            /* Yellow-100 */
             color: #f59e0b;
-            /* Yellow-600 */
         }
 
         .status-adult {
             background-color: #dbeafe;
-            /* Blue-100 */
             color: #3b82f6;
-            /* Blue-500 */
         }
 
         /* z-show Secret Box Style */
         .secret-box {
             background: #10b981;
-            /* Green tone for secret box */
             color: white;
             padding: 1.5rem;
             text-align: center;
@@ -580,13 +584,11 @@
 
         /* List Rendering Enhancements */
         ul.feature-list li {
-            /* ... existing styles ... */
             transition: background-color 0.2s;
         }
 
         ul.feature-list li:hover {
             background: #e2e8f0;
-            /* Slight hover effect */
         }
 
         /* Badge for Removal Button (X) */
@@ -597,13 +599,11 @@
             cursor: pointer;
             border: none;
             line-height: 1;
-            /* Fix vertical alignment */
         }
 
         /* Specific style for Delete Button in List */
         .badge-danger {
             background: #ef4444;
-            /* Red color */
             color: white;
             padding: 4px 10px;
             border-radius: 9999px;
@@ -614,10 +614,9 @@
 
         .badge-danger:hover {
             background: #dc2626;
-            /* Darker red on hover */
         }
 
-        /* Button Info Style (for Toggle Class) - Missing in original CSS */
+        /* Button Info Style (for Toggle Class) */
         .btn-info {
             background-color: #3b82f6;
             color: white;
@@ -628,6 +627,36 @@
             transform: translateY(-2px);
             box-shadow: var(--shadow-lg);
         }
+
+        /* Accessibility fixes */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
+
+        /* High contrast fixes */
+        .tagline {
+            color: #ffffff;
+        }
+
+        .preview-box {
+            background-color: #334155;
+        }
+
+        .dynamic-box {
+            background-color: #4f46e5;
+        }
+
+        .footer-section p {
+            color: #e2e8f0;
+        }
     </style>
 </head>
 
@@ -635,8 +664,15 @@
     <header>
         <nav class="container">
             <div class="logo">
-                <i class="fas fa-bolt"></i>
-                <span>zog.js</span>
+                <svg style="width: 30px;" fill="#4c5cdd" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" stroke="#4c5cdd">
+                    <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                    <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+                    <g id="SVGRepo_iconCarrier">
+                        <path
+                            d="M 13.1758 32.5000 L 26.4180 32.5000 L 19.4336 51.4844 C 18.5195 53.8984 21.0273 55.1875 22.6211 53.2187 L 43.9023 26.5938 C 44.3008 26.1016 44.5117 25.6328 44.5117 25.0938 C 44.5117 24.2031 43.8320 23.5000 42.8477 23.5000 L 29.5820 23.5000 L 36.5899 4.5156 C 37.4804 2.1016 34.9961 .8125 33.4023 2.8047 L 12.1211 29.4063 C 11.7226 29.9219 11.4883 30.3906 11.4883 30.9063 C 11.4883 31.8203 12.1914 32.5000 13.1758 32.5000 Z">
+                        </path>
+                    </g>
+                </svg> <span>Zog.js</span>
             </div>
             <ul class="nav-links">
                 <li><a href="#features">Features</a></li>
@@ -653,7 +689,7 @@
                 <div class="hero-content">
                     <div class="tagline">Ultra Lightweight</div>
                     <h1>The Minimalist <span class="highlight">Reactive</span> Library</h1>
-                    <p>zog.js is a minimal, lightweight reactive library inspired by Vue.js. Built with modern
+                    <p>Zog.js is a minimal, lightweight reactive library inspired by Vue.js. Built with modern
                         JavaScript features to keep your applications fast and efficient.</p>
                     <p style="font-size: 1.25rem; font-weight: 600; color: var(--text); margin-top: 1.5rem;">
                         <i class="fas fa-weight-hanging"></i> This library will never exceed 7kb
@@ -741,12 +777,12 @@
                     <button class="install-tab" data-tab="cdn">CDN</button>
                 </div>
                 <div class="code-block">
-                    <button class="copy-btn"><i class="fas fa-copy"></i></button>
+                    <button class="copy-btn" aria-label="Copy installation command"><i class="fas fa-copy"></i></button>
                     <pre id="install-code">npm install zogjs</pre>
                 </div>
                 <p style="margin-top: 1.5rem;">After installation, you can import zog.js in your project:</p>
                 <div class="code-block">
-                    <button class="copy-btn"><i class="fas fa-copy"></i></button>
+                    <button class="copy-btn" aria-label="Copy import statement"><i class="fas fa-copy"></i></button>
                     <pre>import { createApp, ref } from 'zogjs';</pre>
                 </div>
             </div>
@@ -764,8 +800,8 @@
                     <div class="demo-card">
                         <h3><i class="fas fa-hand-pointer"></i> Two-way Binding</h3>
                         <div class="form-group">
-                            <label>Your Name:</label>
-                            <input type="text" z-model="userName" placeholder="Type your name here...">
+                            <label for="userName">Your Name:</label>
+                            <input type="text" id="userName" z-model="userName" placeholder="Type your name here...">
                         </div>
                         <div class="preview-box">
                             <p>Hello, <span z-text="userName"></span>!</p>
@@ -775,8 +811,8 @@
                     <div class="demo-card">
                         <h3><i class="fas fa-sliders-h"></i> Form Controls</h3>
                         <div class="form-group">
-                            <label>Select Your Role:</label>
-                            <select z-model="userRole">
+                            <label for="userRole">Select Your Role:</label>
+                            <select id="userRole" z-model="userRole">
                                 <option value="Developer">Developer</option>
                                 <option value="Designer">Designer</option>
                                 <option value="Manager">Product Manager</option>
@@ -784,28 +820,28 @@
                         </div>
 
                         <div z-if="userRole === 'Manager'" class="preview-box">
-                            <label for=""> Write down your level of experience. </label>
-                            <input type="text" z-model="experience" placeholder="e.g., 5 years">
+                            <label for="experience"> Write down your level of experience. </label>
+                            <input type="text" id="experience" z-model="experience" placeholder="e.g., 5 years">
                         </div>
 
                         <div class="form-group">
                             <div class="checkbox-group">
-                                <input type="checkbox" z-model="isSubscribe">
-                                <span>Subscribe to newsletter?</span>
+                                <input type="checkbox" id="isSubscribe" z-model="isSubscribe">
+                                <label for="isSubscribe">Subscribe to newsletter?</label>
                             </div>
                         </div>
                         <div class="preview-box">
                             <p>Role: {{ userRole }}</p>
                             <p>Subscribed: {{ isSubscribe }}</p>
-                            <p z-if="userRole === 'Manager' && experience !== 0" >Experience: {{ experience }}</p>
+                            <p z-if="userRole === 'Manager' && experience !== 0">Experience: {{ experience }}</p>
                         </div>
                     </div>
 
                     <div class="demo-card">
                         <h3><i class="fas fa-code-branch"></i> Conditionals & Visibility</h3>
                         <div class="form-group">
-                            <label>Enter Age:</label>
-                            <input type="number" z-model="userAge" min="0">
+                            <label for="userAge">Enter Age:</label>
+                            <input type="number" id="userAge" z-model="userAge" min="0">
                         </div>
 
                         <div class="preview-box">
@@ -827,8 +863,8 @@
                     <div class="demo-card">
                         <h3><i class="fas fa-palette"></i> Dynamic Styles & Classes</h3>
                         <div class="form-group">
-                            <label>Box Width ({{ boxWidth }}%):</label>
-                            <input type="range" z-model="boxWidth" min="10" max="100">
+                            <label for="boxWidth">Box Width ({{ boxWidth }}%):</label>
+                            <input type="range" id="boxWidth" z-model="boxWidth" min="10" max="100">
                         </div>
                         <div class="form-group">
                             <button @click="toggleColor" class="btn btn-dark">Toggle Color</button>
@@ -844,13 +880,15 @@
                     <div class="demo-card">
                         <h3><i class="fas fa-list"></i> List Rendering (z-for)</h3>
                         <div class="form-group" style="display: flex; gap: 10px;">
-                            <input type="text" z-model="newItem" @keydown.enter="addTech" placeholder="Add new tech...">
+                            <input type="text" id="newItem" z-model="newItem" @keydown.enter="addTech"
+                                placeholder="Add new tech...">
                             <button @click="addTech" class="btn btn-primary">Add</button>
                         </div>
                         <ul class="feature-list">
                             <li z-for="tech in techStack" :key="tech">
                                 <span>{{ tech }} (Index: {{ index }})</span>
-                                <button @click="removeTech(index)" class="badge badge-danger">X</button>
+                                <button @click="removeTech(index)" class="badge badge-danger"
+                                    aria-label="Remove item">X</button>
                             </li>
                         </ul>
                         <div z-if="techStack.length === 0" style="text-align: center; margin-top: 1rem;">
@@ -998,7 +1036,7 @@
                 userAge, isSecretVisible, toggleSecret,
 
                 // Dynamic Styles & Classes
-                boxWidth, dynamicStyle, isActive, toggleColor, toggleActive,experience,
+                boxWidth, dynamicStyle, isActive, toggleColor, toggleActive, experience,
 
                 // Lists
                 techStack, newItem, addTech, removeTech,
