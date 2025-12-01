@@ -1,5 +1,5 @@
 /**
- * MiniVue Library (The Definitive Version)
+ * Zog,js Library (The Definitive Version)
  * A minimal reactive framework inspired by Vue.js, ready for production build.
  */
 
@@ -85,6 +85,33 @@ export function createApp(setupFunction) {
     };
 
     /**
+     * Finds the conditional branches starting from a given element.
+     * @param {Element} el - The starting element (must have z-if or z-else-if).
+     * @returns {Array<object>} An array of branches: [{el: Element, exp: string/null}].
+     */
+    const getConditionalBranches = (el) => {
+        const branches = [];
+        let current = el;
+
+        while (current) {
+            if (current.hasAttribute('z-if')) {
+                branches.push({ el: current, exp: current.getAttribute('z-if'), type: 'if' });
+                current = current.nextElementSibling;
+            } else if (current.hasAttribute('z-else-if')) {
+                branches.push({ el: current, exp: current.getAttribute('z-else-if'), type: 'else-if' });
+                current = current.nextElementSibling;
+            } else if (current.hasAttribute('z-else')) {
+                branches.push({ el: current, exp: null, type: 'else' });
+                break; // z-else is the final branch
+            } else {
+                break;
+            }
+        }
+        return branches;
+    };
+
+
+    /**
      * DOM Compiler (Recursive)
      * @param {Node} el - The current DOM node.
      * @param {object} localScope - The current compilation scope.
@@ -107,30 +134,60 @@ export function createApp(setupFunction) {
 
         if (el.nodeType !== 1) return; // Only work on element nodes
 
-        // --- Handle z-if / z-else ---
+        // --- Handle z-if / z-else-if / z-else (MODIFIED) ---
         if (el.hasAttribute('z-if')) {
-            const exp = el.getAttribute('z-if');
-            const placeholder = document.createComment("z-if");
-            el.parentNode.insertBefore(placeholder, el);
+            const branches = getConditionalBranches(el);
+            const parent = el.parentNode;
             
-            // Find the adjacent z-else
-            let nextEl = el.nextElementSibling;
-            let elseBranch = (nextEl && nextEl.hasAttribute('z-else')) ? nextEl : null;
-            if (elseBranch) elseBranch.remove(); // Remove z-else initially
+            // 1. Compile all attributes (z-text, :attr, etc.) and children of all branches
+            // before removing them from the DOM. This ensures all directives are tracked.
+            branches.forEach(branch => {
+                compileAttributes(branch.el, localScope); 
+                Array.from(branch.el.childNodes).forEach(child => compile(child, localScope));
+            });
+
+            // 2. Manage the block rendering
+            
+            // Create a single placeholder for the entire conditional block
+            const placeholder = document.createComment("z-if block");
+            parent.insertBefore(placeholder, el);
+
+            // Remove all branches from the DOM initially
+            branches.forEach(branch => branch.el.remove());
 
             watchEffect(() => {
-                const result = evaluate(exp, localScope);
-                if (result) {
-                    if (!document.contains(el)) placeholder.parentNode.insertBefore(el, placeholder);
-                    if (elseBranch && document.contains(elseBranch)) elseBranch.remove();
-                } else {
-                    el.remove();
-                    if (elseBranch) placeholder.parentNode.insertBefore(elseBranch, placeholder);
+                let elementToRender = null;
+                
+                // Find the first truthy branch
+                for (const branch of branches) {
+                    const condition = branch.type === 'else' ? true : evaluate(branch.exp, localScope);
+                    
+                    if (condition) {
+                        elementToRender = branch.el;
+                        break;
+                    }
+                }
+                
+                // Remove any currently rendered branch that is no longer the match
+                branches.forEach(branch => {
+                    if (branch.el !== elementToRender && document.contains(branch.el)) {
+                        branch.el.remove();
+                    }
+                });
+
+                // Insert the matching branch
+                if (elementToRender && !document.contains(elementToRender)) {
+                    parent.insertBefore(elementToRender, placeholder);
                 }
             });
-            // If the element is removed, stop compiling its children in the initial pass
-            if (!evaluate(exp, localScope)) return; 
+            
+            // Stop processing on the z-if element, as the whole block is handled.
+            return; 
         }
+        
+        // Skip compilation of z-else-if and z-else elements, as they are part of the z-if block.
+        if (el.hasAttribute('z-else-if') || el.hasAttribute('z-else')) return;
+
 
         // --- Handle z-for ---
         if (el.hasAttribute('z-for')) {
