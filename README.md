@@ -1,5 +1,5 @@
 
-# 🚀 Zog.js Documentation , minimal, reactive JavaScript library
+# 🚀 Zog.js Documentation, JavaScript library
 
 **Zog.js** is a minimal, reactive JavaScript framework inspired by Vue.js. It allows you to declaratively render and manage your DOM by connecting reactive data to the HTML structure.
 
