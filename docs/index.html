@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zog.js Documentation</title>
+    <style>
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --text-tertiary: #6e7681;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --border: #30363d;
+            --code-bg: #0d1117;
+            --code-text: #e6edf3;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo svg {
+            margin-right: 10px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 5px 10px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent);
+            background-color: var(--bg-tertiary);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            width: 250px;
+            height: calc(100vh - 60px);
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 20px 0;
+        }
+
+        .sidebar-nav {
+            list-style: none;
+        }
+
+        .sidebar-nav li {
+            margin-bottom: 5px;
+        }
+
+        .sidebar-nav a {
+            display: block;
+            padding: 8px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .sidebar-nav a:hover, .sidebar-nav a.active {
+            color: var(--accent);
+            background-color: var(--bg-tertiary);
+        }
+
+        .sidebar-nav .subsection {
+            padding-left: 20px;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 250px;
+            margin-top: 60px;
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        section {
+            margin-bottom: 50px;
+            scroll-margin-top: 80px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            margin-top: 30px;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            font-size: 1.4rem;
+            margin-bottom: 10px;
+            margin-top: 20px;
+            color: var(--text-primary);
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: var(--text-secondary);
+        }
+
+        ul, ol {
+            margin-bottom: 15px;
+            padding-left: 20px;
+            color: var(--text-secondary);
+        }
+
+        li {
+            margin-bottom: 5px;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: var(--accent-hover);
+            text-decoration: underline;
+        }
+
+        code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background-color: var(--code-bg);
+            color: var(--code-text);
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        td {
+            color: var(--text-secondary);
+        }
+
+        blockquote {
+            border-left: 4px solid var(--accent);
+            padding-left: 20px;
+            margin: 20px 0;
+            color: var(--text-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .menu-toggle {
+                display: block;
+            }
+        }
+
+        .menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .highlight {
+            background-color: rgba(88, 166, 255, 0.1);
+            border-left: 3px solid var(--accent);
+            padding-left: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="https://zogjs.com" class="logo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+            </svg>
+            Zog.js
+        </a>
+        <div class="nav-links">
+            <a href="https://zogjs.com">Home</a>
+            <a href="https://github.com/zogjs/zogjs">GitHub</a>
+            <a href="https://www.npmjs.com/package/zogjs">npm</a>
+            <a href="https://marketplace.visualstudio.com/items?itemName=zogjs.zogjs-support">VS Code</a>
+        </div>
+        <button class="menu-toggle" id="menuToggle">☰</button>
+    </header>
+
+    <div class="container">
+        <aside class="sidebar" id="sidebar">
+            <ul class="sidebar-nav">
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#core-concepts">Core Concepts</a>
+                    <ul class="subsection">
+                        <li><a href="#reactive-data">Reactive Data (ref)</a></li>
+                        <li><a href="#application-instance">Application Instance (createApp)</a></li>
+                        <li><a href="#automatic-effect">Automatic Effect (watchEffect)</a></li>
+                    </ul>
+                </li>
+                <li><a href="#directives-reference">Directives Reference</a>
+                    <ul class="subsection">
+                        <li><a href="#data-binding">Data Binding</a></li>
+                        <li><a href="#two-way-binding">Two-Way Binding</a></li>
+                        <li><a href="#rendering-directives">Rendering Directives</a></li>
+                        <li><a href="#content-directives">Content Directives</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <section id="introduction">
+                <h1>🚀 Zog.js Documentation, JavaScript library</h1>
+                <p><strong>Zog.js</strong> is a minimal, reactive JavaScript framework inspired by Vue.js. It allows you to declaratively render and manage your DOM by connecting reactive data to the HTML structure.</p>
+            </section>
+
+            <section id="installation">
+                <h2>📦 Installation</h2>
+                <p>Zog.js can be used directly in the browser via CDN or installed as an npm package.</p>
+                
+                <h3>Via CDN (Recommended for Demos and Simple Projects)</h3>
+                <p>Include the script tag using the CDN link in your HTML file.</p>
+                <pre><code>&lt;script type="module"&gt;
+    import { createApp, ref, watchEffect } from 'https://cdn.jsdelivr.net/npm/zogjs/dist/zog.es.js';
+
+    // Your Zog.js application code here
+    createApp(() => {
+        // ...
+    }).mount('#app');
+&lt;/script&gt;</code></pre>
+                
+                <h3>Via npm (Recommended for Production/Bundled Projects)</h3>
+                <p>Install Zog.js using npm:</p>
+                <pre><code>npm i zogjs</code></pre>
+                <p>Then import the necessary functions in your JavaScript modules:</p>
+                <pre><code>import { createApp, ref, watchEffect } from 'zogjs';</code></pre>
+            </section>
+
+            <section id="core-concepts">
+                <h2>🧭 Core Concepts</h2>
+                
+                <div id="reactive-data">
+                    <h3>1. The Reactive Data (ref)</h3>
+                    <p>The <code>ref</code> function creates a reactive variable. Whenever its value changes, any part of the DOM or any <code>watchEffect</code> function that relies on it will automatically update.</p>
+                    
+                    <div class="highlight">
+                        <p><strong>Access/Mutate:</strong> Always use the <strong>.value</strong> property to access or change the data.</p>
+                    </div>
+                    
+                    <pre><code>import { ref } from 'zogjs';
+
+const count = ref(0);
+console.log(count.value); // Access: 0
+
+count.value = 1; // Mutation: triggers updates</code></pre>
+                </div>
+                
+                <div id="application-instance">
+                    <h3>2. The Application Instance (createApp)</h3>
+                    <p><code>createApp</code> initializes the framework. It accepts a <code>setupFunction</code> where you define your reactive data (<code>ref</code>s) and methods.</p>
+                    
+                    <pre><code>import { createApp, ref } from 'zogjs';
+
+createApp(() => {
+    // Define reactive state
+    const message = ref("Hello Zog!");
+    
+    // Define methods
+    const reverseMessage = () => {
+        message.value = message.value.split('').reverse().join('');
+    };
+
+    // Return the state and methods you want exposed to the template
+    return {
+        message,
+        reverseMessage
+    };
+}).mount('#app'); // Mounts the application to the element with id="app"</code></pre>
+                </div>
+                
+                <div id="automatic-effect">
+                    <h3>3. Automatic Effect (watchEffect)</h3>
+                    <p><code>watchEffect</code> is used to define side effects that automatically re-run whenever any reactive dependency inside the function changes. This is useful for manual DOM manipulation or advanced logic that doesn't fit directly into a directive.</p>
+                    
+                    <pre><code>import { ref, watchEffect } from 'zogjs';
+
+const width = ref(100);
+const boxStyle = ref("");
+
+// This effect re-runs every time 'width.value' changes
+watchEffect(() => {
+    boxStyle.value = `width: ${width.value}px; background: blue;`;
+});</code></pre>
+                </div>
+            </section>
+
+            <section id="directives-reference">
+                <h2>📜 Directives Reference</h2>
+                <p>Zog.js supports a minimal set of powerful directives:</p>
+                
+                <div id="data-binding">
+                    <h3>1. Data Binding</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Directive</th>
+                                <th>Purpose</th>
+                                <th>Example Usage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>{{ ... }}</code></td>
+                                <td><strong>Text Interpolation.</strong> Displays the computed result of a JavaScript expression.</td>
+                                <td><code>&lt;h1&gt;Count: {{ count + 1 }}&lt;/h1&gt;</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>:attribute</code></td>
+                                <td><strong>Dynamic Attributes.</strong> Binds an HTML attribute (like <code>id</code>, <code>src</code>, <code>style</code>, <code>class</code>) to a reactive value.</td>
+                                <td><code>&lt;div :id="userId"&gt;&lt;/div&gt;</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>@event</code></td>
+                                <td><strong>Event Handling.</strong> Attaches an event listener to call a method or evaluate an expression.</td>
+                                <td><code>&lt;button @click="incrementCount"&gt;Click&lt;/button&gt;</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="two-way-binding">
+                    <h3>2. Two-Way Binding</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Directive</th>
+                                <th>Purpose</th>
+                                <th>Supported Elements</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>z-model</code></td>
+                                <td><strong>Two-Way Binding.</strong> Connects form input values directly to a reactive data property.</td>
+                                <td><code>input</code> (text, range, etc.), <code>textarea</code>, <code>select</code>, <code>input type="checkbox"</code>, <code>input type="radio"</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h4>z-model Example:</h4>
+                    <pre><code>&lt;input type="text" z-model="userName"&gt;
+
+&lt;input type="checkbox" z-model="isChecked"&gt;
+
+&lt;input type="radio" name="theme" value="dark" z-model="theme"&gt;
+&lt;input type="radio" name="theme" value="light" z-model="theme"&gt;
+
+&lt;select z-model="selectedOption"&gt;
+    &lt;option value="A"&gt;Option A&lt;/option&gt;
+&lt;/select&gt;</code></pre>
+                </div>
+                
+                <div id="rendering-directives">
+                    <h3>3. Rendering Directives</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Directive</th>
+                                <th>Purpose</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>z-if</code></td>
+                                <td><strong>Conditional Rendering.</strong> Renders the element only if the expression evaluates to truthy.</td>
+                                <td>The element is fully removed from the DOM if false.</td>
+                            </tr>
+                            <tr>
+                                <td><code>z-else</code></td>
+                                <td><strong>Else Block.</strong> Must immediately follow an element with <code>z-if</code>.</td>
+                                <td>Renders if the preceding <code>z-if</code> expression is falsy.</td>
+                            </tr>
+                            <tr>
+                                <td><code>z-for</code></td>
+                                <td><strong>List Rendering.</strong> Renders an element and its content multiple times based on a list (array).</td>
+                                <td>Syntax: <code>item in items</code>. The <code>index</code> variable is also available in the scope.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h4>z-for Example:</h4>
+                    <pre><code>&lt;ul z-if="list.length > 0"&gt;
+    &lt;li z-for="item in list"&gt;{{ item }}&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div z-else&gt;No items found.&lt;/div&gt;</code></pre>
+                </div>
+                
+                <div id="content-directives">
+                    <h3>4. Content Directives</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Directive</th>
+                                <th>Purpose</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>z-text</code></td>
+                                <td><strong>Text Content.</strong> Updates the element's <code>textContent</code> with the reactive value. Safer than interpolation as it avoids HTML injection.</td>
+                            </tr>
+                            <tr>
+                                <td><code>z-html</code></td>
+                                <td><strong>HTML Content.</strong> Updates the element's <code>innerHTML</code> with the reactive value. Use with caution to prevent XSS attacks.</td>
+                            </tr>
+                            <tr>
+                                <td><code>z-show</code></td>
+                                <td><strong>Conditional Display.</strong> Toggles the element's visibility by setting <code>display: none</code> via CSS, keeping it in the DOM.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Sidebar navigation functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const menuToggle = document.getElementById('menuToggle');
+            const sidebar = document.getElementById('sidebar');
+            const navLinks = document.querySelectorAll('.sidebar-nav a');
+            
+            // Toggle sidebar on mobile
+            menuToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('active');
+            });
+            
+            // Smooth scrolling to sections
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    const targetId = this.getAttribute('href');
+                    const targetSection = document.querySelector(targetId);
+                    
+                    if (targetSection) {
+                        window.scrollTo({
+                            top: targetSection.offsetTop - 70,
+                            behavior: 'smooth'
+                        });
+                        
+                        // Close sidebar on mobile after clicking a link
+                        if (window.innerWidth <= 768) {
+                            sidebar.classList.remove('active');
+                        }
+                        
+                        // Update active link
+                        navLinks.forEach(link => link.classList.remove('active'));
+                        this.classList.add('active');
+                    }
+                });
+            });
+            
+            // Highlight current section on scroll
+            window.addEventListener('scroll', function() {
+                let current = '';
+                const sections = document.querySelectorAll('section[id]');
+                
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop - 100;
+                    const sectionHeight = section.clientHeight;
+                    
+                    if (window.pageYOffset >= sectionTop && 
+                        window.pageYOffset < sectionTop + sectionHeight) {
+                        current = section.getAttribute('id');
+                    }
+                });
+                
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href') === '#' + current) {
+                        link.classList.add('active');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
