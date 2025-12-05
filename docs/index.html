@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zog.js Documentation</title>
+    <title>Zog.js Documentation - Minimal Reactive JavaScript Framework</title>
 
         <!-- SEO Meta Tags -->
     <meta name="description" content="Zog.js is a minimal, reactive JavaScript framework inspired by Vue.js. Learn how to use reactive data, directives, and create dynamic web applications with Zog.js.">
     <meta name="keywords" content="Zog.js, JavaScript framework, reactive, Vue.js, minimal, documentation, web development, frontend, reactive data, directives">
-    <meta name="author" content="Zog.js">
+    <meta name="author" content="Zog.js Team">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://zogjs.com/docs">
     
     <!-- Open Graph Meta Tags -->
     <meta property="og:title" content="Zog.js Documentation - Minimal Reactive JavaScript Framework">
     <meta property="og:description" content="Zog.js is a minimal, reactive JavaScript framework inspired by Vue.js. Learn how to use reactive data, directives, and create dynamic web applications with Zog.js.">
-    <!-- <meta property="og:image" content="https://zogjs.com/images/zogjs-og-image.jpg"> -->
+    <meta property="og:image" content="https://zogjs.com/images/zogjs-og-image.jpg">
     <meta property="og:url" content="https://zogjs.com/docs">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Zog.js">
@@ -31,362 +31,541 @@
 
     <style>
         :root {
-            --bg-primary: #0f1419;
+            --bg-primary: #0d1117;
             --bg-secondary: #161b22;
-            --bg-tertiary: #21262d;
-            --text-primary: #c9d1d9;
-            --text-secondary: #8b949e;
-            --text-tertiary: #6e7681;
+            --bg-tertiary: #1a1f2e;
             --accent: #58a6ff;
             --accent-hover: #79c0ff;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
             --border: #30363d;
-            --code-bg: #0d1117;
-            --code-text: #e6edf3;
+            --success: #238636;
+            --success-hover: #2ea043;
+            --danger: #f85149;
+            --warning: #d29922;
         }
-
+        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
+        
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
             color: var(--text-primary);
             line-height: 1.6;
+            overflow-x: hidden;
         }
-
-        .container {
-            display: flex;
-            min-height: 100vh;
-        }
-
+        
         /* Header */
-        header {
-            position: fixed;
+        .header {
+            background: rgba(13, 17, 23, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 0;
+            position: sticky;
             top: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background-color: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
+            z-index: 1000;
+        }
+        
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            padding: 0 20px;
-            z-index: 100;
+            align-items: center;
         }
-
+        
         .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-decoration: none;
             display: flex;
             align-items: center;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--text-primary);
-            text-decoration: none;
+            gap: 0.5rem;
         }
-
+        
         .logo svg {
-            margin-right: 10px;
+            width: 32px;
+            height: 32px;
+            filter: drop-shadow(0 0 5px rgba(88, 166, 255, 0.5));
         }
-
-        .nav-links {
-            display: flex;
-            gap: 15px;
-        }
-
-        .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            padding: 5px 10px;
-            border-radius: 6px;
-            transition: all 0.2s;
-        }
-
-        .nav-links a:hover {
-            color: var(--accent);
-            background-color: var(--bg-tertiary);
-        }
-
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 60px;
-            left: 0;
-            width: 250px;
-            height: calc(100vh - 60px);
-            background-color: var(--bg-secondary);
-            border-right: 1px solid var(--border);
-            overflow-y: auto;
-            padding: 20px 0;
-        }
-
-        .sidebar-nav {
-            list-style: none;
-        }
-
-        .sidebar-nav li {
-            margin-bottom: 5px;
-        }
-
-        .sidebar-nav a {
-            display: block;
-            padding: 8px 20px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-
-        .sidebar-nav a:hover, .sidebar-nav a.active {
-            color: var(--accent);
-            background-color: var(--bg-tertiary);
-        }
-
-        .sidebar-nav .subsection {
-            padding-left: 20px;
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: 250px;
-            margin-top: 60px;
-            padding: 40px;
-            max-width: 900px;
-            width: 100%;
-        }
-
-        section {
-            margin-bottom: 50px;
-            scroll-margin-top: 80px;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 20px;
-            color: var(--text-primary);
-        }
-
-        h2 {
-            font-size: 1.8rem;
-            margin-bottom: 15px;
-            margin-top: 30px;
-            color: var(--text-primary);
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 10px;
-        }
-
-        h3 {
-            font-size: 1.4rem;
-            margin-bottom: 10px;
-            margin-top: 20px;
-            color: var(--text-primary);
-        }
-
-        p {
-            margin-bottom: 15px;
-            color: var(--text-secondary);
-        }
-
-        ul, ol {
-            margin-bottom: 15px;
-            padding-left: 20px;
-            color: var(--text-secondary);
-        }
-
-        li {
-            margin-bottom: 5px;
-        }
-
-        a {
-            color: var(--accent);
-            text-decoration: none;
-        }
-
-        a:hover {
-            color: var(--accent-hover);
-            text-decoration: underline;
-        }
-
-        code {
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            background-color: var(--code-bg);
-            color: var(--code-text);
-            padding: 2px 5px;
-            border-radius: 4px;
-            font-size: 0.9em;
-        }
-
-        pre {
-            background-color: var(--code-bg);
-            border-radius: 8px;
-            padding: 16px;
-            overflow-x: auto;
-            margin-bottom: 20px;
-            border: 1px solid var(--border);
-        }
-
-        pre code {
-            background-color: transparent;
-            padding: 0;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        th {
-            background-color: var(--bg-tertiary);
-            color: var(--text-primary);
-        }
-
-        td {
-            color: var(--text-secondary);
-        }
-
-        blockquote {
-            border-left: 4px solid var(--accent);
-            padding-left: 20px;
-            margin: 20px 0;
-            color: var(--text-secondary);
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-                transition: transform 0.3s;
-            }
-
-            .sidebar.active {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: 0;
-            }
-
-            .menu-toggle {
-                display: block;
-            }
-        }
-
-        .menu-toggle {
+        
+        .mobile-menu-toggle {
             display: none;
             background: none;
             border: none;
             color: var(--text-primary);
             font-size: 1.5rem;
             cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 6px;
+            transition: background 0.2s;
         }
-
-        .highlight {
-            background-color: rgba(88, 166, 255, 0.1);
-            border-left: 3px solid var(--accent);
-            padding-left: 15px;
-            margin: 20px 0;
+        
+        .mobile-menu-toggle:hover {
+            background: rgba(88, 166, 255, 0.1);
+        }
+        
+        .header-links {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+        
+        .header-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .header-links a:hover {
+            color: var(--accent);
+        }
+        
+        .header-links .btn {
+            background: var(--success);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 500;
+            border: 1px solid var(--success-hover);
+            transition: background 0.2s;
+        }
+        
+        .header-links .btn:hover {
+            background: var(--success-hover);
+            color: white;
+            text-decoration: none;
+        }
+        
+        /* Main container */
+        .container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            max-width: 1400px;
+            margin: 0 auto;
+            min-height: calc(100vh - 80px);
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            background: rgba(22, 27, 34, 0.6);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid var(--border);
+            padding: 2rem 0;
+            position: sticky;
+            top: 80px;
+            height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+        
+        .sidebar h3 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            padding: 0 1.5rem;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+        }
+        
+        .nav-menu {
+            padding: 0 0.5rem;
+        }
+        
+        .nav-menu ul {
+            list-style: none;
+        }
+        
+        .nav-menu li {
+            margin-bottom: 0.25rem;
+        }
+        
+        .nav-menu a {
+            color: var(--text-primary);
+            text-decoration: none;
+            display: block;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+            position: relative;
+        }
+        
+        .nav-menu a:hover {
+            background: rgba(88, 166, 255, 0.1);
+            color: var(--accent);
+        }
+        
+        .nav-menu a.active {
+            background: rgba(88, 166, 255, 0.15);
+            color: var(--accent);
+            font-weight: 500;
+        }
+        
+        .nav-menu a.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 3px;
+            background: var(--accent);
+            border-radius: 0 3px 3px 0;
+        }
+        
+        .nav-menu ul ul a {
+            padding-left: 2rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .nav-menu ul ul a.active {
+            color: var(--accent);
+        }
+        
+        /* Main content */
+        .content {
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+        
+        .content-wrapper {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .content section {
+            margin-bottom: 4rem;
+            scroll-margin-top: 100px;
+        }
+        
+        .tagline {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+        
+        .quick-links {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 3rem;
+        }
+        
+        .content h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--accent);
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+        }
+        
+        .content h2 {
+            font-size: 1.8rem;
+            margin: 3rem 0 1rem;
+            color: var(--text-primary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+        
+        .content h3 {
+            font-size: 1.3rem;
+            margin: 2rem 0 1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .content p {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .content ul, .content ol {
+            margin-left: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .content li {
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+        
+        .content strong {
+            color: var(--text-primary);
+        }
+        
+        /* Code blocks */
+        pre {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+        
+        code {
+            font-family: 'Fira Code', 'Cascadia Code', 'Source Code Pro', Consolas, 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        pre code {
+            color: var(--text-primary);
+        }
+        
+        :not(pre) > code {
+            background: rgba(110, 118, 129, 0.2);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            color: var(--accent);
+            font-weight: 500;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        th, td {
+            padding: 0.875rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        th {
+            background: var(--bg-primary);
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+        }
+        
+        td {
+            color: var(--text-primary);
+        }
+        
+        td code {
+            background: rgba(88, 166, 255, 0.1);
+            color: var(--accent);
+        }
+        
+        /* Footer */
+        footer {
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border);
+            padding: 3rem 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            margin-top: 3rem;
+        }
+        
+        .footer-content {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .footer-links {
+            margin-top: 1rem;
+        }
+        
+        .footer-links a {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+        
+        .footer-links a:hover {
+            color: var(--accent);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                position: fixed;
+                left: -100%;
+                top: 61px;
+                height: calc(100vh - 61px);
+                transition: left 0.3s ease;
+                z-index: 999;
+                width: 280px;
+                background: var(--bg-secondary);
+            }
+            
+            .sidebar.active {
+                left: 0;
+            }
+            
+            .mobile-menu-toggle {
+                display: block;
+            }
+            
+            .content {
+                padding: 1.5rem;
+            }
+            
+            .header-content {
+                padding: 0 1rem;
+            }
+            
+            .header-links {
+                gap: 0.75rem;
+            }
+            
+            .header-links a:not(.btn) {
+                display: none;
+            }
+            
+            .quick-links {
+                justify-content: center;
+            }
+            
+            .content h1 {
+                font-size: 2rem;
+            }
+            
+            .content h2 {
+                font-size: 1.5rem;
+            }
+            
+            .content h3 {
+                font-size: 1.2rem;
+            }
         }
     </style>
+<base target="_blank">
 </head>
 <body>
-    <header>
-        <a href="https://zogjs.com" class="logo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-            </svg>
-            Zog.js
-        </a>
-        <div class="nav-links">
-            <a href="https://zogjs.com">Home</a>
-            <a href="https://github.com/zogjs/zogjs">GitHub</a>
-            <a href="https://www.npmjs.com/package/zogjs">npm</a>
-            <a href="https://marketplace.visualstudio.com/items?itemName=zogjs.zogjs-support">VS Code</a>
+    <header class="header">
+        <div class="header-content">
+            <a href="https://zogjs.com" class="logo">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M2 17L12 22L22 17" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M2 12L12 17L22 12" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Zog.js
+            </a>
+            <button class="mobile-menu-toggle">☰</button>
+            <nav class="header-links">
+                <a href="https://zogjs.com">Home</a>
+                <a href="https://github.com/zogjs/zogjs">GitHub</a>
+                <a href="https://www.npmjs.com/package/zogjs">npm</a>
+                <a href="https://marketplace.visualstudio.com/items?itemName=zogjs.zogjs-support" class="btn">VS Code Extension</a>
+            </nav>
         </div>
-        <button class="menu-toggle" id="menuToggle">☰</button>
     </header>
 
     <div class="container">
-        <aside class="sidebar" id="sidebar">
-            <ul class="sidebar-nav">
-                <li><a href="#installation">Installation</a></li>
-                <li><a href="#core-concepts">Core Concepts</a>
-                    <ul class="subsection">
-                        <li><a href="#reactive-data">Reactive Data (ref)</a></li>
-                        <li><a href="#application-instance">Application Instance (createApp)</a></li>
-                        <li><a href="#automatic-effect">Automatic Effect (watchEffect)</a></li>
-                    </ul>
-                </li>
-                <li><a href="#directives-reference">Directives Reference</a>
-                    <ul class="subsection">
-                        <li><a href="#data-binding">Data Binding</a></li>
-                        <li><a href="#two-way-binding">Two-Way Binding</a></li>
-                        <li><a href="#rendering-directives">Rendering Directives</a></li>
-                        <li><a href="#content-directives">Content Directives</a></li>
-                    </ul>
-                </li>
-            </ul>
+        <aside class="sidebar">
+            <nav class="nav-menu">
+                <h3>Documentation</h3>
+                <ul>
+                    <li><a href="#introduction">Introduction</a></li>
+                    <li>
+                        <a href="#installation">Installation</a>
+                        <ul>
+                            <li><a href="#installation">Via CDN</a></li>
+                            <li><a href="#installation-via-npm">Via npm</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a href="#core-concepts">Core Concepts</a>
+                        <ul>
+                            <li><a href="#reactive-data-ref">The Reactive Data (ref)</a></li>
+                            <li><a href="#application-instance-createapp">The Application Instance (createApp)</a></li>
+                            <li><a href="#automatic-effect-watcheffect">Automatic Effect (watchEffect)</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a href="#directives-reference">Directives Reference</a>
+                        <ul>
+                            <li><a href="#data-binding">Data Binding</a></li>
+                            <li><a href="#two-way-binding">Two-Way Binding</a></li>
+                            <li><a href="#rendering-directives">Rendering Directives</a></li>
+                            <li><a href="#content-directives">Content Directives</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
         </aside>
 
-        <main class="main-content">
-            <section id="introduction">
-                <h1>🚀 Zog.js Documentation, JavaScript library</h1>
-                <p><strong>Zog.js</strong> is a minimal, reactive JavaScript framework inspired by Vue.js. It allows you to declaratively render and manage your DOM by connecting reactive data to the HTML structure.</p>
-            </section>
-
-            <section id="installation">
-                <h2>📦 Installation</h2>
-                <p>Zog.js can be used directly in the browser via CDN or installed as an npm package.</p>
-                
-                <h3>Via CDN (Recommended for Demos and Simple Projects)</h3>
-                <p>Include the script tag using the CDN link in your HTML file.</p>
-                <pre><code>&lt;script type="module"&gt;
-    import { createApp, ref, watchEffect } from 'https://cdn.jsdelivr.net/npm/zogjs/dist/zog.es.js';
-
-    // Your Zog.js application code here
-    createApp(() => {
-        // ...
-    }).mount('#app');
-&lt;/script&gt;</code></pre>
-                
-                <h3>Via npm (Recommended for Production/Bundled Projects)</h3>
-                <p>Install Zog.js using npm:</p>
-                <pre><code>npm i zogjs</code></pre>
-                <p>Then import the necessary functions in your JavaScript modules:</p>
-                <pre><code>import { createApp, ref, watchEffect } from 'zogjs';</code></pre>
-            </section>
-
-            <section id="core-concepts">
-                <h2>🧭 Core Concepts</h2>
-                
-                <div id="reactive-data">
-                    <h3>1. The Reactive Data (ref)</h3>
-                    <p>The <code>ref</code> function creates a reactive variable. Whenever its value changes, any part of the DOM or any <code>watchEffect</code> function that relies on it will automatically update.</p>
-                    
-                    <div class="highlight">
-                        <p><strong>Access/Mutate:</strong> Always use the <strong>.value</strong> property to access or change the data.</p>
+        <main class="content">
+            <div class="content-wrapper">
+                <section id="introduction" data-section="introduction">
+                    <h1>Zog.js Documentation</h1>
+                    <p class="tagline">A minimal, reactive JavaScript framework inspired by Vue.js. Declaratively render and manage your DOM with reactive data binding.</p>
+                    <div class="quick-links">
+                        <a href="https://zogjs.com" class="btn btn-primary">Homepage</a>
+                        <a href="https://github.com/zogjs/zogjs" class="btn btn-secondary">GitHub Repository</a>
+                        <a href="https://www.npmjs.com/package/zogjs" class="btn btn-secondary">NPM Package</a>
+                        <a href="https://marketplace.visualstudio.com/items?itemName=zogjs.zogjs-support" class="btn btn-secondary">VS Code Extension</a>
                     </div>
+                </section>
+
+                <section id="installation" data-section="installation">
+                    <h2>Installation</h2>
+                    <p>Zog.js can be used directly in the browser via CDN or installed as an npm package.</p>
                     
-                    <pre><code>import { ref } from 'zogjs';
+                    <h3>Via CDN (Recommended for Demos and Simple Projects)</h3>
+                    <p>Include the script tag using the CDN link in your HTML file.</p>
+                    <pre><code class="language-javascript">import { createApp, ref, watchEffect } from 'https://cdn.jsdelivr.net/npm/zogjs/dist/zog.es.js ';</code></pre>
+                    
+                    <h3 id="installation-via-npm">Via npm (Recommended for Production/Bundled Projects)</h3>
+                    <p>Install Zog.js using npm:</p>
+                    <pre><code class="language-bash">npm i zogjs</code></pre>
+                    <p>Then import the necessary functions in your JavaScript modules:</p>
+                    <pre><code class="language-javascript">import { createApp, ref, watchEffect } from 'zogjs';</code></pre>
+                </section>
+
+                <section id="core-concepts" data-section="core-concepts">
+                    <h2>Core Concepts</h2>
+                    
+                    <h3 id="reactive-data-ref">1. The Reactive Data (<code>ref</code>)</h3>
+                    <p>The <code>ref</code> function creates a reactive variable. Whenever its value changes, any part of the DOM or any <code>watchEffect</code> function that relies on it will automatically update.</p>
+                    <ul>
+                        <li><strong>Access/Mutate:</strong> Always use the <strong>.value</strong> property to access or change the data.</li>
+                    </ul>
+                    <pre><code class="language-javascript">import { ref } from 'zogjs';
 
 const count = ref(0);
 console.log(count.value); // Access: 0
 
 count.value = 1; // Mutation: triggers updates</code></pre>
-                </div>
-                
-                <div id="application-instance">
-                    <h3>2. The Application Instance (createApp)</h3>
-                    <p><code>createApp</code> initializes the framework. It accepts a <code>setupFunction</code> where you define your reactive data (<code>ref</code>s) and methods.</p>
                     
-                    <pre><code>import { createApp, ref } from 'zogjs';
+                    <h3 id="application-instance-createapp">2. The Application Instance (<code>createApp</code>)</h3>
+                    <p><code>createApp</code> initializes the framework. It accepts a <code>setupFunction</code> where you define your reactive data (<code>ref</code>s) and methods.</p>
+                    <pre><code class="language-javascript">import { createApp, ref } from 'zogjs';
 
 createApp(() => {
     // Define reactive state
@@ -403,13 +582,10 @@ createApp(() => {
         reverseMessage
     };
 }).mount('#app'); // Mounts the application to the element with id="app"</code></pre>
-                </div>
-                
-                <div id="automatic-effect">
-                    <h3>3. Automatic Effect (watchEffect)</h3>
-                    <p><code>watchEffect</code> is used to define side effects that automatically re-run whenever any reactive dependency inside the function changes. This is useful for manual DOM manipulation or advanced logic that doesn't fit directly into a directive.</p>
                     
-                    <pre><code>import { ref, watchEffect } from 'zogjs';
+                    <h3 id="automatic-effect-watcheffect">3. Automatic Effect (<code>watchEffect</code>)</h3>
+                    <p><code>watchEffect</code> is used to define side effects that automatically re-run whenever any reactive dependency inside the function changes. This is useful for manual DOM manipulation or advanced logic that doesn't fit directly into a directive.</p>
+                    <pre><code class="language-javascript">import { ref, watchEffect } from 'zogjs';
 
 const width = ref(100);
 const boxStyle = ref("");
@@ -418,15 +594,13 @@ const boxStyle = ref("");
 watchEffect(() => {
     boxStyle.value = `width: ${width.value}px; background: blue;`;
 });</code></pre>
-                </div>
-            </section>
+                </section>
 
-            <section id="directives-reference">
-                <h2>📜 Directives Reference</h2>
-                <p>Zog.js supports a minimal set of powerful directives:</p>
-                
-                <div id="data-binding">
-                    <h3>1. Data Binding</h3>
+                <section id="directives-reference" data-section="directives-reference">
+                    <h2>Directives Reference</h2>
+                    <p>Zog.js supports a minimal set of powerful directives:</p>
+                    
+                    <h3 id="data-binding">1. Data Binding</h3>
                     <table>
                         <thead>
                             <tr>
@@ -453,10 +627,8 @@ watchEffect(() => {
                             </tr>
                         </tbody>
                     </table>
-                </div>
-                
-                <div id="two-way-binding">
-                    <h3>2. Two-Way Binding</h3>
+                    
+                    <h3 id="two-way-binding">2. Two-Way Binding</h3>
                     <table>
                         <thead>
                             <tr>
@@ -473,9 +645,8 @@ watchEffect(() => {
                             </tr>
                         </tbody>
                     </table>
-                    
-                    <h4>z-model Example:</h4>
-                    <pre><code>&lt;input type="text" z-model="userName"&gt;
+                    <p><strong>z-model Example:</strong></p>
+                    <pre><code class="language-html">&lt;input type="text" z-model="userName"&gt;
 
 &lt;input type="checkbox" z-model="isChecked"&gt;
 
@@ -485,10 +656,8 @@ watchEffect(() => {
 &lt;select z-model="selectedOption"&gt;
     &lt;option value="A"&gt;Option A&lt;/option&gt;
 &lt;/select&gt;</code></pre>
-                </div>
-                
-                <div id="rendering-directives">
-                    <h3>3. Rendering Directives</h3>
+                    
+                    <h3 id="rendering-directives">3. Rendering Directives</h3>
                     <table>
                         <thead>
                             <tr>
@@ -515,16 +684,13 @@ watchEffect(() => {
                             </tr>
                         </tbody>
                     </table>
-                    
-                    <h4>z-for Example:</h4>
-                    <pre><code>&lt;ul z-if="list.length > 0"&gt;
+                    <p><strong>z-for Example:</strong></p>
+                    <pre><code class="language-html">&lt;ul z-if="list.length > 0"&gt;
     &lt;li z-for="item in list"&gt;{{ item }}&lt;/li&gt;
 &lt;/ul&gt;
 &lt;div z-else&gt;No items found.&lt;/div&gt;</code></pre>
-                </div>
-                
-                <div id="content-directives">
-                    <h3>4. Content Directives</h3>
+                    
+                    <h3 id="content-directives">4. Content Directives</h3>
                     <table>
                         <thead>
                             <tr>
@@ -547,71 +713,97 @@ watchEffect(() => {
                             </tr>
                         </tbody>
                     </table>
-                </div>
-            </section>
+                </section>
+            </div>
         </main>
     </div>
 
+    <footer>
+        <div class="footer-content">
+            <p>&copy; 2025 Zog.js. A minimal, reactive JavaScript framework.</p>
+            <div class="footer-links">
+                <a href="https://zogjs.com">Homepage</a> • 
+                <a href="https://github.com/zogjs/zogjs">GitHub</a> • 
+                <a href="https://www.npmjs.com/package/zogjs">npm</a> • 
+                <a href="https://marketplace.visualstudio.com/items?itemName=zogjs.zogjs-support">VS Code Extension</a>
+            </div>
+        </div>
+    </footer>
+
     <script>
-        // Sidebar navigation functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const menuToggle = document.getElementById('menuToggle');
-            const sidebar = document.getElementById('sidebar');
-            const navLinks = document.querySelectorAll('.sidebar-nav a');
+        // Active link highlighting on scroll
+        const sections = document.querySelectorAll('section[id], h3[id]');
+        const navLinks = document.querySelectorAll('.nav-menu a[href^="#"]');
+        
+        function setActiveLink() {
+            const scrollPosition = window.scrollY + 120;
+            let current = 'introduction';
             
-            // Toggle sidebar on mobile
-            menuToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('active');
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
+                    current = section.getAttribute('id');
+                }
             });
             
-            // Smooth scrolling to sections
             navLinks.forEach(link => {
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    
-                    const targetId = this.getAttribute('href');
-                    const targetSection = document.querySelector(targetId);
-                    
-                    if (targetSection) {
-                        window.scrollTo({
-                            top: targetSection.offsetTop - 70,
-                            behavior: 'smooth'
-                        });
-                        
-                        // Close sidebar on mobile after clicking a link
-                        if (window.innerWidth <= 768) {
-                            sidebar.classList.remove('active');
-                        }
-                        
-                        // Update active link
-                        navLinks.forEach(link => link.classList.remove('active'));
-                        this.classList.add('active');
-                    }
-                });
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.classList.add('active');
+                }
             });
-            
-            // Highlight current section on scroll
-            window.addEventListener('scroll', function() {
-                let current = '';
-                const sections = document.querySelectorAll('section[id]');
-                
-                sections.forEach(section => {
-                    const sectionTop = section.offsetTop - 100;
-                    const sectionHeight = section.clientHeight;
-                    
-                    if (window.pageYOffset >= sectionTop && 
-                        window.pageYOffset < sectionTop + sectionHeight) {
-                        current = section.getAttribute('id');
-                    }
-                });
-                
-                navLinks.forEach(link => {
-                    link.classList.remove('active');
-                    if (link.getAttribute('href') === '#' + current) {
-                        link.classList.add('active');
-                    }
-                });
+        }
+        
+        window.addEventListener('scroll', setActiveLink);
+        window.addEventListener('DOMContentLoaded', setActiveLink);
+        
+        // Mobile menu toggle
+        const mobileToggle = document.querySelector('.mobile-menu-toggle');
+        const sidebar = document.querySelector('.sidebar');
+        
+        if (mobileToggle) {
+            mobileToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+                mobileToggle.textContent = sidebar.classList.contains('active') ? '✕' : '☰';
             });
+        }
+        
+        // Handle navigation clicks - Prevent new tab and update URL hash
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault(); // Prevent any default navigation
+                
+                const targetId = link.getAttribute('href');
+                
+                // Close mobile menu
+                sidebar.classList.remove('active');
+                if (mobileToggle) {
+                    mobileToggle.textContent = '☰';
+                }
+                
+                // Update URL hash without reloading
+                history.pushState(null, null, targetId);
+                
+                // Scroll to target section
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+        
+        // Close mobile menu on window resize to desktop
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('active');
+                if (mobileToggle) {
+                    mobileToggle.textContent = '☰';
+                }
+            }
         });
     </script>
 </body>
