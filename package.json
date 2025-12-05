@@ -1,6 +1,6 @@
 {
   "name": "zogjs",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "MiniVue: A minimal reactive framework inspired by Vue.js",
   
   "type": "module", 
@@ -23,7 +23,7 @@
     "type": "git",
     "url": "https://github.com/zogjs/zogjs.git"
   },
-  "homepage": "https://github.com/zogjs/zogjs#readme", 
+  "homepage": "https://zogjs.com", 
 
   "devDependencies": {
     "terser": "^5.44.1",
