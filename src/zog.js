@@ -176,20 +176,26 @@ const compile = (el, scope) => {
         }
         else if (name.startsWith(':') || name.startsWith('z-')) {
             const attr = name.startsWith(':') ? name.slice(1) : name;
+            const staticClass = (attr === 'class') ? el.className : '';
             if (name.startsWith(':')) el.removeAttribute(name);
-
+            
             watchEffect(() => {
                 const res = evalExp(value, scope);
+
                 if (attr === 'z-text') el.textContent = res;
                 else if (attr === 'z-html') el.innerHTML = res;
                 else if (attr === 'z-show') el.style.display = res ? '' : 'none';
                 else if (attr === 'style' && typeof res === 'object') Object.assign(el.style, res);
+
                 else if (attr === 'class' && typeof res === 'object') {
-                    el.className = Object.keys(res).filter(k => res[k]).join(' ');
+                    const dynamicClasses = Object.keys(res).filter(k => res[k]).join(' ');
+                    el.className = (staticClass + ' ' + dynamicClasses).trim();
                 }
+
                 else el.setAttribute(attr, res);
             });
         }
+
     });
 
     el.childNodes.forEach(child => compile(child, scope));
@@ -205,7 +211,7 @@ const getQueryObj = () =>
         : {};
 
 const _r = {
-    h: ref(isBrowser ? window.location.hash     : ''),
+    h: ref(isBrowser ? window.location.hash : ''),
     p: ref(isBrowser ? window.location.pathname : ''),
     q: ref(getQueryObj())
 };
@@ -223,8 +229,8 @@ if (isBrowser) {
 }
 
 export const route = {
-    get hash()  { return _r.h.value; },
-    get path()  { return _r.p.value; },
+    get hash() { return _r.h.value; },
+    get path() { return _r.p.value; },
     get query() { return _r.q.value; }
 };
 
