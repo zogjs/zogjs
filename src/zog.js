@@ -195,6 +195,40 @@ const compile = (el, scope) => {
     el.childNodes.forEach(child => compile(child, scope));
 };
 
+// --- 4. Built-in Minimal Router ---
+
+const isBrowser = typeof window !== 'undefined';
+
+const getQueryObj = () =>
+    isBrowser
+        ? Object.fromEntries(new URLSearchParams(window.location.search))
+        : {};
+
+const _r = {
+    h: ref(isBrowser ? window.location.hash     : ''),
+    p: ref(isBrowser ? window.location.pathname : ''),
+    q: ref(getQueryObj())
+};
+
+const syncRoute = () => {
+    if (!isBrowser) return;
+    _r.h.value = window.location.hash;
+    _r.p.value = window.location.pathname;
+    _r.q.value = getQueryObj();
+};
+
+if (isBrowser) {
+    window.addEventListener('hashchange', syncRoute);
+    window.addEventListener('popstate', syncRoute);
+}
+
+export const route = {
+    get hash()  { return _r.h.value; },
+    get path()  { return _r.p.value; },
+    get query() { return _r.q.value; }
+};
+
+
 // --- 3. App Creator (No changes needed) ---
 export function createApp(setup) {
     return {
