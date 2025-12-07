@@ -1,5 +1,5 @@
 /**
- * Zog.js v2.0 - Compact & Optimized
+ * Zog.js
  * Full reactivity with minimal code size
  */
 
@@ -15,7 +15,12 @@ class Dep {
             activeEffect.deps.push(this);
         }
     }
-    notify() { this.subs.forEach(e => e.scheduler ? e.scheduler(e) : e.run()); }
+    notify() {
+        this.subs.forEach(e => {
+            if (e.scheduler) e.scheduler(e.run.bind(e));
+            else e.run();
+        });
+    }
 }
 
 class ReactiveEffect {
@@ -25,7 +30,7 @@ class ReactiveEffect {
         this.deps = [];
         this.active = true;
     }
-    
+
     run() {
         if (!this.active) return;
         try {
@@ -34,10 +39,10 @@ class ReactiveEffect {
             return this.fn();
         } finally {
             effectStack.pop();
-            activeEffect = effectStack[effectStack.length - 1];
+            activeEffect = effectStack[effectStack.length - 1] || null;
         }
     }
-    
+
     stop() {
         if (this.active) {
             this.deps.forEach(d => d.subs.delete(this));
@@ -61,25 +66,32 @@ const isObj = v => v && typeof v === 'object';
 
 export const reactive = target => {
     if (!isObj(target) || target[IS_REACTIVE]) return target;
-    
+
     const existing = reactiveMap.get(target);
     if (existing) return existing;
-    
+
     const depsMap = new Map();
-    const getDep = k => depsMap.get(k) || (depsMap.set(k, new Dep()), depsMap.get(k));
-    
+    const getDep = k => {
+        let d = depsMap.get(k);
+        if (!d) { d = new Dep(); depsMap.set(k, d); }
+        return d;
+    };
+
     const proxy = new Proxy(target, {
         get: (t, k) => {
             if (k === IS_REACTIVE) return true;
             if (k === RAW) return t;
-            getDep(k).depend();
+            const dep = getDep(k);
+            dep.depend();
             const res = Reflect.get(t, k);
+
+            if (res && res._isRef) return res;
             return isObj(res) ? reactive(res) : res;
         },
         set: (t, k, v) => {
             const old = t[k];
             const res = Reflect.set(t, k, v);
-            if (old !== v) getDep(k).notify();
+            if (!Object.is(old, v)) getDep(k).notify();
             return res;
         },
         deleteProperty: (t, k) => {
@@ -89,7 +101,7 @@ export const reactive = target => {
             return res;
         }
     });
-    
+
     reactiveMap.set(target, proxy);
     return proxy;
 };
@@ -99,7 +111,7 @@ export const ref = val => {
     return {
         _isRef: true,
         get value() { dep.depend(); return val; },
-        set value(v) { if (v !== val) { val = v; dep.notify(); } },
+        set value(v) { if (!Object.is(v, val)) { val = v; dep.notify(); } },
         toString: () => String(val)
     };
 };
@@ -110,7 +122,7 @@ export const computed = getter => {
     const effect = new ReactiveEffect(getter, () => {
         if (!dirty) { dirty = true; dep.notify(); }
     });
-    
+
     return {
         _isRef: true,
         get value() {
@@ -129,10 +141,10 @@ class Scope {
         this.effects = [];
         this.listeners = [];
     }
-    
+
     addEffect(stop) { this.effects.push(stop); }
     addListener(el, ev, fn) { this.listeners.push({ el, ev, fn }); }
-    
+
     cleanup() {
         this.effects.forEach(s => s());
         this.listeners.forEach(({el, ev, fn}) => el.removeEventListener(ev, fn));
@@ -147,7 +159,11 @@ const evalExp = (exp, scope) => {
         const keys = Object.keys(scope);
         const vals = keys.map(k => scope[k]?._isRef ? scope[k].value : scope[k]);
         return Function(...keys, `"use strict";return(${exp})`)(...vals);
-    } catch { return undefined; }
+    } catch (err) {
+
+        if (typeof console !== 'undefined') console.error('evalExp error:', err, 'exp:', exp);
+        return undefined;
+    }
 };
 
 // --- Compiler ---
@@ -192,10 +208,11 @@ const compile = (el, scope, cs) => {
             branches.forEach(b => {
                 if (b === match) {
                     if (!b.el.parentNode) {
-                        parent.insertBefore(b.el, ph.nextSibling);
+                        parent.insertBefore(b.el, ph);
                         if (!b.scope) {
-                            b.scope = new Scope(scope);
-                            compile(b.el, scope, b.scope);
+
+                            b.scope = new Scope({ ...scope });
+                            compile(b.el, b.scope.data, b.scope);
                         }
                     }
                 } else {
@@ -204,7 +221,7 @@ const compile = (el, scope, cs) => {
                 }
             });
         }));
-        
+
         cs.addEffect(() => branches.forEach(b => b.scope?.cleanup()));
         return;
     }
@@ -213,7 +230,22 @@ const compile = (el, scope, cs) => {
 
     // z-for
     if (el.hasAttribute('z-for')) {
-        const [item, list] = el.getAttribute('z-for').split(' in ').map(s => s.trim());
+
+        const rawFor = el.getAttribute('z-for');
+        const forMatch = rawFor.match(/^\s*(?:\((\w+)\s*,\s*(\w+)\)|(?:(\w+)))\s+(?:in|of)\s+(.*)$/);
+        let itemName = 'item', indexName = 'index', listExp = rawFor;
+        if (forMatch) {
+            itemName = forMatch[1] || forMatch[3] || 'item';
+            indexName = forMatch[2] || 'index';
+            listExp = forMatch[4];
+        } else {
+            const parts = rawFor.split(/\s+in\s+|\s+of\s+/);
+            if (parts.length === 2) {
+                itemName = parts[0].trim();
+                listExp = parts[1].trim();
+            }
+        }
+
         const parent = el.parentNode;
         if (!parent) return;
 
@@ -224,21 +256,22 @@ const compile = (el, scope, cs) => {
 
         let items = [];
         cs.addEffect(watchEffect(() => {
+
             items.forEach(({clone, scope: s}) => { clone.remove(); s.cleanup(); });
             items = [];
 
-            const arr = evalExp(list, scope) || [];
+            const arr = evalExp(listExp, scope) || [];
             if (Array.isArray(arr)) {
                 arr.forEach((v, i) => {
                     const clone = el.cloneNode(true);
                     parent.insertBefore(clone, ph);
-                    const s = new Scope({ ...scope, [item]: ref(v), index: ref(i) });
+                    const s = new Scope({ ...scope, [itemName]: ref(v), [indexName]: ref(i) });
                     compile(clone, s.data, s);
                     items.push({ clone, scope: s });
                 });
             }
         }));
-        
+
         cs.addEffect(() => items.forEach(({scope: s}) => s.cleanup()));
         return;
     }
@@ -278,11 +311,14 @@ const compile = (el, scope, cs) => {
                 el.type === 'radio' ? el.checked = String(el.value) === String(res) : el[prop] = res;
             }));
         }
-        // Bindings
+        // Bindings (both :attr and z-* bindings)
         else if (name.startsWith(':') || name.startsWith('z-')) {
+
             const attr = name.startsWith(':') ? name.slice(1) : name;
+
+            el.removeAttribute(name);
+
             const staticClass = attr === 'class' ? el.className : '';
-            if (name.startsWith(':')) el.removeAttribute(name);
 
             cs.addEffect(watchEffect(() => {
                 const res = evalExp(value, scope);
@@ -293,7 +329,10 @@ const compile = (el, scope, cs) => {
                 else if (attr === 'class' && isObj(res)) {
                     const dynamic = Object.keys(res).filter(k => res[k]).join(' ');
                     el.className = (staticClass + ' ' + dynamic).trim();
-                } else el.setAttribute(attr, res ?? '');
+                } else {
+                    const setName = attr.startsWith('z-') ? attr.slice(2) : attr;
+                    el.setAttribute(setName, res ?? '');
+                }
             }));
         }
     });
@@ -308,7 +347,7 @@ const getQuery = () => isBrowser ? Object.fromEntries(new URLSearchParams(locati
 const _r = {
     h: ref(isBrowser ? location.hash : ''),
     p: ref(isBrowser ? location.pathname : ''),
-    q: ref(getQuery())
+    q: ref(isBrowser ? getQuery() : {})
 };
 
 const sync = () => {
