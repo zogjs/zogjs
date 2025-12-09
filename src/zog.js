@@ -501,7 +501,8 @@ const compile = (el, scope, cs) => {
             if (!type) break;
             const exp = curr.getAttribute(type);
             curr.removeAttribute(type);
-            branches.push({ el: curr, exp, type, scope: null });
+            // Store template clone for reuse
+            branches.push({ template: curr.cloneNode(true), exp, type, el: null, scope: null });
             const next = curr.nextElementSibling;
             curr.remove();
             curr = next;
@@ -511,16 +512,18 @@ const compile = (el, scope, cs) => {
             const match = branches.find(b => b.type === 'z-else' || evalExp(b.exp, scope));
             branches.forEach(b => {
                 if (b === match) {
-                    if (!b.el.parentNode) {
+                    if (!b.el || !b.el.parentNode) {
+                        // Always create fresh clone from template
+                        if (b.scope) { b.scope.cleanup(); }
+                        b.el = b.template.cloneNode(true);
+                        b.scope = new Scope({ ...scope });
                         parent.insertBefore(b.el, ph);
-                        if (!b.scope) {
-                            b.scope = new Scope({ ...scope });
-                            compile(b.el, b.scope.data, b.scope);
-                        }
+                        compile(b.el, b.scope.data, b.scope);
                     }
                 } else {
-                    if (b.el.parentNode) b.el.remove();
+                    if (b.el && b.el.parentNode) b.el.remove();
                     if (b.scope) { b.scope.cleanup(); b.scope = null; }
+                    b.el = null;
                 }
             });
         }));
