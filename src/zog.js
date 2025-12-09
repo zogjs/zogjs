@@ -1,6 +1,7 @@
 /**
- * Zog.js
+ * Zog.js v2.0
  * Full reactivity with minimal code size
+ * Fixed: Complete array reactivity support
  */
 
 // --- Reactivity Core ---
@@ -59,12 +60,25 @@ export const watchEffect = (fn, opts = {}) => {
 };
 
 // --- Deep Reactivity ---
-const RAW = Symbol();
-const IS_REACTIVE = Symbol();
+const RAW = Symbol('raw');
+const IS_REACTIVE = Symbol('isReactive');
+const IS_ARRAY = Symbol('isArray');
 const reactiveMap = new WeakMap();
 const isObj = v => v && typeof v === 'object';
 
-const arrayMethods = ['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'];
+// Array methods that mutate the array
+const arrayMutatingMethods = [
+    'push', 'pop', 'shift', 'unshift', 
+    'splice', 'sort', 'reverse', 'fill', 'copyWithin'
+];
+
+// Array methods that need tracking
+const arrayTrackingMethods = [
+    'includes', 'indexOf', 'lastIndexOf',
+    'find', 'findIndex', 'some', 'every',
+    'filter', 'map', 'forEach', 'reduce', 'reduceRight',
+    'flat', 'flatMap', 'join', 'slice', 'concat'
+];
 
 export const reactive = target => {
     if (!isObj(target) || target[IS_REACTIVE]) return target;
@@ -72,59 +86,156 @@ export const reactive = target => {
     const existing = reactiveMap.get(target);
     if (existing) return existing;
 
+    const isArray = Array.isArray(target);
     const depsMap = new Map();
+    
+    // A single dep for the entire array/object (for iteration and length)
+    const iterationDep = new Dep();
+    
     const getDep = k => {
         let d = depsMap.get(k);
         if (!d) { d = new Dep(); depsMap.set(k, d); }
         return d;
     };
 
+    // Create overridden methods for arrays
+    const createArrayInstrumentations = () => {
+        const instrumentations = {};
+
+        // Mutating methods - should notify all subscribers
+        arrayMutatingMethods.forEach(method => {
+            instrumentations[method] = function(...args) {
+                // Access the raw array
+                const rawTarget = this[RAW];
+                
+                // Execute the original method
+                const result = rawTarget[method].apply(rawTarget, args);
+                
+                // Notify for changes
+                iterationDep.notify();
+                getDep('length').notify();
+                
+                return result;
+            };
+        });
+
+        // Tracking methods - should create dependencies
+        arrayTrackingMethods.forEach(method => {
+            instrumentations[method] = function(...args) {
+                // Track the entire array
+                iterationDep.depend();
+                getDep('length').depend();
+                
+                const rawTarget = this[RAW];
+                
+                // If arguments are reactive, use their raw version
+                const rawArgs = args.map(arg => {
+                    if (isObj(arg) && arg[IS_REACTIVE]) {
+                        return arg[RAW];
+                    }
+                    return arg;
+                });
+                
+                const result = rawTarget[method].apply(rawTarget, rawArgs);
+                
+                // Make result reactive if needed
+                if (isObj(result) && !result[IS_REACTIVE]) {
+                    return reactive(result);
+                }
+                return result;
+            };
+        });
+
+        return instrumentations;
+    };
+
+    const arrayInstrumentations = isArray ? createArrayInstrumentations() : null;
+
     const proxy = new Proxy(target, {
-        get: (t, k) => {
+        get: (t, k, receiver) => {
+            // Special symbols
             if (k === IS_REACTIVE) return true;
             if (k === RAW) return t;
-            
+            if (k === IS_ARRAY) return isArray;
+
+            // If it's an array and we have an overridden method
+            if (isArray && arrayInstrumentations && k in arrayInstrumentations) {
+                return arrayInstrumentations[k].bind(receiver);
+            }
+
+            // For array length, track both itself and iteration
+            if (isArray && k === 'length') {
+                getDep('length').depend();
+                iterationDep.depend();
+                return t.length;
+            }
+
+            // For Symbol.iterator
+            if (k === Symbol.iterator) {
+                iterationDep.depend();
+                return function* () {
+                    const len = t.length;
+                    for (let i = 0; i < len; i++) {
+                        const val = t[i];
+                        yield isObj(val) ? reactive(val) : val;
+                    }
+                };
+            }
+
             const dep = getDep(k);
             dep.depend();
             
-            const res = Reflect.get(t, k);
+            const res = Reflect.get(t, k, receiver);
 
+            // If it's a ref, return directly
             if (res && res._isRef) return res;
             
-            if (Array.isArray(t) && arrayMethods.includes(k)) {
-                return function(...args) {
-                    const result = Array.prototype[k].apply(t, args);
-                    getDep('length').notify();
-                    for (let i = 0; i < t.length; i++) {
-                        getDep(i).notify();
-                    }
-                    return result;
-                };
-            }
-            
+            // Make nested objects reactive
             return isObj(res) ? reactive(res) : res;
         },
-        set: (t, k) => {
+
+        set: (t, k, v, receiver) => {
             const old = t[k];
-            const res = Reflect.set(t, k, arguments[2]);
-            if (!Object.is(old, arguments[2])) {
+            const hadKey = isArray ? Number(k) < t.length : k in t;
+            
+            // If new value is reactive, store its raw version
+            const rawValue = isObj(v) && v[IS_REACTIVE] ? v[RAW] : v;
+            const res = Reflect.set(t, k, rawValue, receiver);
+
+            if (!Object.is(old, rawValue)) {
                 getDep(k).notify();
-                if (Array.isArray(t) && k !== 'length') {
-                    getDep('length').notify();
+                
+                // If a new key was added or length changed
+                if (!hadKey || (isArray && k === 'length')) {
+                    iterationDep.notify();
+                    if (isArray) getDep('length').notify();
                 }
             }
+
             return res;
         },
+
         deleteProperty: (t, k) => {
             const had = k in t;
             const res = Reflect.deleteProperty(t, k);
             if (had) {
                 getDep(k).notify();
-                if (Array.isArray(t)) {
-                    getDep('length').notify();
-                }
+                iterationDep.notify();
             }
             return res;
+        },
+
+        // For for...in loops
+        ownKeys: (t) => {
+            iterationDep.depend();
+            return Reflect.ownKeys(t);
+        },
+
+        // For 'in' operator
+        has: (t, k) => {
+            iterationDep.depend();
+            getDep(k).depend();
+            return Reflect.has(t, k);
         }
     });
 
@@ -139,6 +250,32 @@ export const ref = val => {
         get value() { dep.depend(); return val; },
         set value(v) { if (!Object.is(v, val)) { val = v; dep.notify(); } },
         toString: () => String(val)
+    };
+};
+
+// Ref for arrays with full support
+export const refArray = initialArray => {
+    const arr = reactive(Array.isArray(initialArray) ? [...initialArray] : []);
+    return {
+        _isRef: true,
+        _isArrayRef: true,
+        get value() { return arr; },
+        set value(v) {
+            // Clear current array and add new items
+            arr.length = 0;
+            if (Array.isArray(v)) {
+                arr.push(...v);
+            }
+        },
+        // Helper methods
+        push: (...items) => arr.push(...items),
+        pop: () => arr.pop(),
+        shift: () => arr.shift(),
+        unshift: (...items) => arr.unshift(...items),
+        splice: (...args) => arr.splice(...args),
+        sort: (fn) => arr.sort(fn),
+        reverse: () => arr.reverse(),
+        toString: () => String(arr)
     };
 };
 
@@ -158,6 +295,54 @@ export const computed = getter => {
         },
         _effect: effect
     };
+};
+
+// Watch function for observing changes
+export const watch = (source, callback, options = {}) => {
+    let getter;
+    let oldValue;
+    
+    if (typeof source === 'function') {
+        getter = source;
+    } else if (source._isRef) {
+        getter = () => source.value;
+    } else if (isObj(source)) {
+        getter = () => traverse(source);
+    } else {
+        getter = () => source;
+    }
+
+    const job = () => {
+        const newValue = effect.run();
+        if (options.deep || !Object.is(newValue, oldValue)) {
+            callback(newValue, oldValue);
+            oldValue = newValue;
+        }
+    };
+
+    const effect = new ReactiveEffect(getter, job);
+    
+    if (options.immediate) {
+        job();
+    } else {
+        oldValue = effect.run();
+    }
+
+    return () => effect.stop();
+};
+
+// Helper function to traverse object
+const traverse = (value, seen = new Set()) => {
+    if (!isObj(value) || seen.has(value)) return value;
+    seen.add(value);
+    
+    if (Array.isArray(value)) {
+        value.forEach(item => traverse(item, seen));
+    } else {
+        Object.keys(value).forEach(key => traverse(value[key], seen));
+    }
+    
+    return value;
 };
 
 // --- Component Scope ---
@@ -183,7 +368,11 @@ class Scope {
 const evalExp = (exp, scope) => {
     try {
         const keys = Object.keys(scope);
-        const vals = keys.map(k => scope[k]?._isRef ? scope[k].value : scope[k]);
+        const vals = keys.map(k => {
+            const v = scope[k];
+            if (v?._isRef) return v.value;
+            return v;
+        });
         return Function(...keys, `"use strict";return(${exp})`)(...vals);
     } catch (err) {
         if (typeof console !== 'undefined') console.error('evalExp error:', err, 'exp:', exp);
@@ -195,6 +384,7 @@ const evalExp = (exp, scope) => {
 const compile = (el, scope, cs) => {
     if (!el) return;
 
+    // Text nodes
     if (el.nodeType === 3) {
         const txt = el.textContent;
         if (txt.includes('{{')) {
@@ -207,6 +397,7 @@ const compile = (el, scope, cs) => {
 
     if (el.nodeType !== 1) return;
 
+    // z-if
     if (el.hasAttribute('z-if')) {
         const branches = [];
         let curr = el, parent = el.parentNode;
@@ -250,10 +441,12 @@ const compile = (el, scope, cs) => {
 
     if (el.hasAttribute('z-else-if') || el.hasAttribute('z-else')) return;
 
+    // z-for with better array support
     if (el.hasAttribute('z-for')) {
         const rawFor = el.getAttribute('z-for');
         const forMatch = rawFor.match(/^\s*(?:\((\w+)\s*,\s*(\w+)\)|(?:(\w+)))\s+(?:in|of)\s+(.*)$/);
         let itemName = 'item', indexName = 'index', listExp = rawFor;
+        
         if (forMatch) {
             itemName = forMatch[1] || forMatch[3] || 'item';
             indexName = forMatch[2] || 'index';
@@ -275,27 +468,55 @@ const compile = (el, scope, cs) => {
         el.removeAttribute('z-for');
 
         let items = [];
-        cs.addEffect(watchEffect(() => {
-            items.forEach(({clone, scope: s}) => { clone.remove(); s.cleanup(); });
+        
+        // Function to handle array updates
+        const updateList = () => {
+            // Cleanup previous items
+            items.forEach(({clone, scope: s}) => { 
+                clone.remove(); 
+                s.cleanup(); 
+            });
             items = [];
 
-            const arr = evalExp(listExp, scope) || [];
-            if (Array.isArray(arr)) {
-                arr.forEach((v, i) => {
-                    const clone = el.cloneNode(true);
-                    parent.insertBefore(clone, ph);
-                    const s = new Scope({ ...scope, [itemName]: ref(v), [indexName]: ref(i) });
-                    compile(clone, s.data, s);
-                    items.push({ clone, scope: s });
-                });
+            // Get new array
+            let arr = evalExp(listExp, scope);
+            
+            // If it's a ref, get its value
+            if (arr && arr._isRef) {
+                arr = arr.value;
             }
-        }));
+            
+            // Don't use RAW for reactive arrays to preserve reactivity
+            if (!arr) arr = [];
+            if (!Array.isArray(arr)) arr = [];
 
+            arr.forEach((v, i) => {
+                const clone = el.cloneNode(true);
+                parent.insertBefore(clone, ph);
+                
+                // Create refs for item and index
+                const itemRef = ref(v);
+                const indexRef = ref(i);
+                
+                const s = new Scope({ 
+                    ...scope, 
+                    [itemName]: itemRef, 
+                    [indexName]: indexRef 
+                });
+                
+                compile(clone, s.data, s);
+                items.push({ clone, scope: s, itemRef, indexRef });
+            });
+        };
+
+        cs.addEffect(watchEffect(updateList));
         cs.addEffect(() => items.forEach(({scope: s}) => s.cleanup()));
         return;
     }
 
+    // Directives
     Array.from(el.attributes).forEach(({ name, value }) => {
+        // Events
         if (name.startsWith('@') || name.startsWith('z-on:')) {
             const ev = name.startsWith('@') ? name.slice(1) : name.slice(5);
             el.removeAttribute(name);
@@ -306,6 +527,7 @@ const compile = (el, scope, cs) => {
             el.addEventListener(ev, fn);
             cs.addListener(el, ev, fn);
         }
+        // z-model
         else if (name === 'z-model') {
             el.removeAttribute(name);
             const isCheck = el.type === 'checkbox' || el.type === 'radio';
@@ -327,6 +549,7 @@ const compile = (el, scope, cs) => {
                 el.type === 'radio' ? el.checked = String(el.value) === String(res) : el[prop] = res;
             }));
         }
+        // Bindings
         else if (name.startsWith(':') || name.startsWith('z-')) {
             const attr = name.startsWith(':') ? name.slice(1) : name;
             el.removeAttribute(name);
@@ -410,3 +633,21 @@ export const toRef = (obj, key) => {
         set value(v) { obj[key] = v; }
     };
 };
+
+// Helper function to access the raw object
+export const toRaw = (observed) => {
+    return observed && observed[RAW] ? observed[RAW] : observed;
+};
+
+// Function to check if value is reactive
+export const isReactive = (value) => {
+    return value ? !!value[IS_REACTIVE] : false;
+};
+
+// Function to check if value is a ref
+export const isRef = (value) => {
+    return value ? !!value._isRef : false;
+};
+
+// Object to access symbols
+export const symbols = { RAW, IS_REACTIVE, IS_ARRAY };
