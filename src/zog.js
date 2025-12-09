@@ -1,7 +1,7 @@
 /**
- * Zog.js v2.0
+ * Zog.js v2.2
  * Full reactivity with minimal code size
- * Fixed: Complete array reactivity support
+ * Optimized: Removed route, nextTick, toRaw, symbols. Streamlined array handling and compiler.
  */
 
 // --- Reactivity Core ---
@@ -20,7 +20,7 @@ class Dep {
         // Create a copy to avoid infinite loops when effects modify reactive data
         const effectsToRun = new Set(this.subs);
         effectsToRun.forEach(e => {
-            // Prevent running effect that is currently executing (infinite loop prevention)
+            // Prevent running effect that is currently executing
             if (e !== activeEffect) {
                 if (e.scheduler) e.scheduler(e.run.bind(e));
                 else queueEffect(e);
@@ -29,7 +29,7 @@ class Dep {
     }
 }
 
-// Effect queue for batching updates (prevents multiple re-renders)
+// Effect queue for batching updates
 let effectQueue = [];
 let isFlushing = false;
 
@@ -45,12 +45,9 @@ const queueEffect = (effect) => {
 
 const flushEffects = () => {
     try {
-        // Sort effects by id to ensure parent effects run before children
         effectQueue.sort((a, b) => (a.id || 0) - (b.id || 0));
         for (const effect of effectQueue) {
-            if (effect.active) {
-                effect.run();
-            }
+            if (effect.active) effect.run();
         }
     } finally {
         effectQueue = [];
@@ -72,7 +69,6 @@ class ReactiveEffect {
     run() {
         if (!this.active) return this.fn();
         
-        // Clean up old dependencies before re-running
         this.cleanup();
         
         try {
@@ -85,7 +81,6 @@ class ReactiveEffect {
         }
     }
 
-    // Clean up old dependencies to prevent memory leaks
     cleanup() {
         for (const dep of this.deps) {
             dep.subs.delete(this);
@@ -110,23 +105,20 @@ export const watchEffect = (fn, opts = {}) => {
 // --- Deep Reactivity ---
 const RAW = Symbol('raw');
 const IS_REACTIVE = Symbol('isReactive');
-const IS_ARRAY = Symbol('isArray');
 const reactiveMap = new WeakMap();
 const isObj = v => v && typeof v === 'object';
 
-// Array methods that mutate the array
-const arrayMutatingMethods = [
-    'push', 'pop', 'shift', 'unshift', 
-    'splice', 'sort', 'reverse', 'fill', 'copyWithin'
-];
+// Optimized: Unified array method handling
+const arrayMethodsThatMutate = new Set([
+    'push', 'pop', 'shift', 'unshift', 'splice', 
+    'sort', 'reverse', 'fill', 'copyWithin'
+]);
 
-// Array methods that need tracking
-const arrayTrackingMethods = [
-    'includes', 'indexOf', 'lastIndexOf',
-    'find', 'findIndex', 'some', 'every',
-    'filter', 'map', 'forEach', 'reduce', 'reduceRight',
-    'flat', 'flatMap', 'join', 'slice', 'concat'
-];
+const arrayMethodsThatIterate = new Set([
+    'includes', 'indexOf', 'lastIndexOf', 'find', 'findIndex',
+    'some', 'every', 'filter', 'map', 'forEach', 'reduce',
+    'reduceRight', 'flat', 'flatMap', 'join', 'slice', 'concat'
+]);
 
 export const reactive = target => {
     if (!isObj(target) || target[IS_REACTIVE]) return target;
@@ -136,8 +128,6 @@ export const reactive = target => {
 
     const isArray = Array.isArray(target);
     const depsMap = new Map();
-    
-    // A single dep for the entire array/object (for iteration and length)
     const iterationDep = new Dep();
     
     const getDep = k => {
@@ -146,79 +136,64 @@ export const reactive = target => {
         return d;
     };
 
-    // Create overridden methods for arrays
-    const createArrayInstrumentations = () => {
-        const instrumentations = {};
-
-        // Mutating methods - should notify all subscribers
-        arrayMutatingMethods.forEach(method => {
-            instrumentations[method] = function(...args) {
-                // Access the raw array
-                const rawTarget = this[RAW];
-                
-                // Execute the original method
-                const result = rawTarget[method].apply(rawTarget, args);
-                
-                // Notify for changes
-                iterationDep.notify();
-                getDep('length').notify();
-                
-                return result;
-            };
-        });
-
-        // Tracking methods - should create dependencies
-        arrayTrackingMethods.forEach(method => {
-            instrumentations[method] = function(...args) {
-                // Track the entire array
+    // Optimized: Single method handler for all array methods
+    const createArrayMethod = (method) => {
+        const isMutating = arrayMethodsThatMutate.has(method);
+        const isIterating = arrayMethodsThatIterate.has(method);
+        
+        return function(...args) {
+            const rawTarget = this[RAW];
+            
+            // Track dependencies for iteration methods
+            if (isIterating) {
                 iterationDep.depend();
                 getDep('length').depend();
-                
-                const rawTarget = this[RAW];
-                
-                // If arguments are reactive, use their raw version
-                const rawArgs = args.map(arg => {
-                    if (isObj(arg) && arg[IS_REACTIVE]) {
-                        return arg[RAW];
-                    }
-                    return arg;
-                });
-                
-                const result = rawTarget[method].apply(rawTarget, rawArgs);
-                
-                // Make result reactive if needed
-                if (isObj(result) && !result[IS_REACTIVE]) {
-                    return reactive(result);
-                }
-                return result;
-            };
-        });
-
-        return instrumentations;
+            }
+            
+            // Convert reactive arguments to raw
+            const rawArgs = args.map(arg => 
+                (isObj(arg) && arg[IS_REACTIVE]) ? arg[RAW] : arg
+            );
+            
+            const result = rawTarget[method].apply(rawTarget, rawArgs);
+            
+            // Notify on mutations
+            if (isMutating) {
+                iterationDep.notify();
+                getDep('length').notify();
+            }
+            
+            // Make result reactive if needed
+            return (isObj(result) && !result[IS_REACTIVE]) ? reactive(result) : result;
+        };
     };
 
-    const arrayInstrumentations = isArray ? createArrayInstrumentations() : null;
+    // Create all array method overrides
+    const arrayMethods = isArray ? {} : null;
+    if (isArray) {
+        [...arrayMethodsThatMutate, ...arrayMethodsThatIterate].forEach(method => {
+            arrayMethods[method] = createArrayMethod(method);
+        });
+    }
 
     const proxy = new Proxy(target, {
         get: (t, k, receiver) => {
-            // Special symbols
             if (k === IS_REACTIVE) return true;
             if (k === RAW) return t;
-            if (k === IS_ARRAY) return isArray;
 
-            // If it's an array and we have an overridden method
-            if (isArray && arrayInstrumentations && k in arrayInstrumentations) {
-                return arrayInstrumentations[k].bind(receiver);
+            // Array method override
+            if (isArray && arrayMethods && k in arrayMethods) {
+                return arrayMethods[k].bind(receiver);
             }
 
-            // For array length, track both itself and iteration
+            // Array length tracking
             if (isArray && k === 'length') {
                 getDep('length').depend();
                 iterationDep.depend();
                 return t.length;
             }
 
-            // For Symbol.iterator
+            // Iterator tracking
             if (k === Symbol.iterator) {
                 iterationDep.depend();
                 return function* () {
@@ -230,34 +205,25 @@ export const reactive = target => {
                 };
             }
 
-            const dep = getDep(k);
-            dep.depend();
-            
+            getDep(k).depend();
             const res = Reflect.get(t, k, receiver);
 
-            // If it's a ref, return directly
-            if (res && res._isRef) return res;
-            
-            // Make nested objects reactive
-            return isObj(res) ? reactive(res) : res;
+            // Return refs directly, make objects reactive
+            return (res && res._isRef) ? res : (isObj(res) ? reactive(res) : res);
         },
 
         set: (t, k, v, receiver) => {
             const old = t[k];
-            // Fix: properly check if key exists for arrays (handle string indices)
             const numKey = Number(k);
             const hadKey = isArray 
                 ? (Number.isInteger(numKey) && numKey >= 0 && numKey < t.length)
                 : Object.prototype.hasOwnProperty.call(t, k);
             
-            // If new value is reactive, store its raw version
-            const rawValue = isObj(v) && v[IS_REACTIVE] ? v[RAW] : v;
+            const rawValue = (isObj(v) && v[IS_REACTIVE]) ? v[RAW] : v;
             const res = Reflect.set(t, k, rawValue, receiver);
 
             if (!Object.is(old, rawValue)) {
                 getDep(k).notify();
-                
-                // If a new key was added or length changed
                 if (!hadKey || (isArray && k === 'length')) {
                     iterationDep.notify();
                     if (isArray) getDep('length').notify();
@@ -277,13 +243,11 @@ export const reactive = target => {
             return res;
         },
 
-        // For for...in loops
         ownKeys: (t) => {
             iterationDep.depend();
             return Reflect.ownKeys(t);
         },
 
-        // For 'in' operator
         has: (t, k) => {
             iterationDep.depend();
             getDep(k).depend();
@@ -305,32 +269,6 @@ export const ref = val => {
     };
 };
 
-// Ref for arrays with full support
-export const refArray = initialArray => {
-    const arr = reactive(Array.isArray(initialArray) ? [...initialArray] : []);
-    return {
-        _isRef: true,
-        _isArrayRef: true,
-        get value() { return arr; },
-        set value(v) {
-            // Clear current array and add new items
-            arr.length = 0;
-            if (Array.isArray(v)) {
-                arr.push(...v);
-            }
-        },
-        // Helper methods
-        push: (...items) => arr.push(...items),
-        pop: () => arr.pop(),
-        shift: () => arr.shift(),
-        unshift: (...items) => arr.unshift(...items),
-        splice: (...args) => arr.splice(...args),
-        sort: (fn) => arr.sort(fn),
-        reverse: () => arr.reverse(),
-        toString: () => String(arr)
-    };
-};
-
 export const computed = getter => {
     let value, dirty = true;
     const dep = new Dep();
@@ -347,92 +285,6 @@ export const computed = getter => {
         },
         _effect: effect
     };
-};
-
-// Watch function for observing changes
-export const watch = (source, callback, options = {}) => {
-    let getter;
-    let oldValue;
-    
-    if (typeof source === 'function') {
-        getter = source;
-    } else if (source && source._isRef) {
-        getter = () => source.value;
-    } else if (isObj(source)) {
-        // For deep watching, we need to traverse and return a new value indicator
-        getter = () => {
-            traverse(source);
-            return source;
-        };
-        options.deep = true;
-    } else {
-        getter = () => source;
-    }
-
-    let cleanup;
-    const onCleanup = (fn) => {
-        cleanup = fn;
-    };
-
-    const job = () => {
-        if (!effect.active) return;
-        
-        const newValue = effect.run();
-        
-        // For deep watching, always trigger callback since we can't easily compare
-        // For shallow watching, use Object.is comparison
-        const shouldTrigger = options.deep 
-            ? true 
-            : !Object.is(newValue, oldValue);
-            
-        if (shouldTrigger) {
-            // Run cleanup before callback
-            if (cleanup) {
-                cleanup();
-                cleanup = undefined;
-            }
-            callback(newValue, oldValue, onCleanup);
-            // Deep clone for objects to properly detect changes next time
-            oldValue = options.deep && isObj(newValue) 
-                ? JSON.parse(JSON.stringify(toRaw(newValue)))
-                : newValue;
-        }
-    };
-
-    const effect = new ReactiveEffect(getter, options.flush === 'sync' ? undefined : () => queueEffect({ run: job, active: true, id: effectId++ }));
-    
-    if (options.immediate) {
-        job();
-    } else {
-        oldValue = effect.run();
-        if (options.deep && isObj(oldValue)) {
-            oldValue = JSON.parse(JSON.stringify(toRaw(oldValue)));
-        }
-    }
-
-    return () => {
-        effect.stop();
-        if (cleanup) cleanup();
-    };
-};
-
-// Helper to get raw value (forward declaration for watch)
-const toRaw = (observed) => {
-    return observed && observed[RAW] ? observed[RAW] : observed;
-};
-
-// Helper function to traverse object
-const traverse = (value, seen = new Set()) => {
-    if (!isObj(value) || seen.has(value)) return value;
-    seen.add(value);
-    
-    if (Array.isArray(value)) {
-        value.forEach(item => traverse(item, seen));
-    } else {
-        Object.keys(value).forEach(key => traverse(value[key], seen));
-    }
-    
-    return value;
 };
 
 // --- Component Scope ---
@@ -454,27 +306,46 @@ class Scope {
     }
 }
 
-// --- Expression Evaluator ---
+// --- Optimized Expression Evaluator ---
+// Caching compiled functions for better performance
+const expCache = new Map();
+
 const evalExp = (exp, scope) => {
     try {
-        const keys = Object.keys(scope);
-        const vals = keys.map(k => {
+        // Check cache first
+        let cached = expCache.get(exp);
+        
+        if (!cached) {
+            const keys = Object.keys(scope);
+            const fn = Function(...keys, `"use strict";return(${exp})`);
+            cached = { fn, keys };
+            
+            // Limit cache size to prevent memory leaks
+            if (expCache.size > 200) {
+                const firstKey = expCache.keys().next().value;
+                expCache.delete(firstKey);
+            }
+            expCache.set(exp, cached);
+        }
+        
+        // Get current values, unwrap refs
+        const vals = cached.keys.map(k => {
             const v = scope[k];
-            if (v?._isRef) return v.value;
-            return v;
+            return v?._isRef ? v.value : v;
         });
-        return Function(...keys, `"use strict";return(${exp})`)(...vals);
+        
+        return cached.fn(...vals);
     } catch (err) {
         if (typeof console !== 'undefined') console.error('evalExp error:', err, 'exp:', exp);
         return undefined;
     }
 };
 
-// --- Compiler ---
+// --- Optimized Compiler ---
 const compile = (el, scope, cs) => {
     if (!el) return;
 
-    // Text nodes
+    // Text nodes with interpolation
     if (el.nodeType === 3) {
         const txt = el.textContent;
         if (txt.includes('{{')) {
@@ -487,7 +358,7 @@ const compile = (el, scope, cs) => {
 
     if (el.nodeType !== 1) return;
 
-    // z-if
+    // z-if branches
     if (el.hasAttribute('z-if')) {
         const branches = [];
         let curr = el, parent = el.parentNode;
@@ -496,12 +367,12 @@ const compile = (el, scope, cs) => {
         const ph = document.createComment('z-if');
         parent.insertBefore(ph, el);
 
+        // Collect all branches
         while (curr) {
             const type = ['z-if', 'z-else-if', 'z-else'].find(t => curr.hasAttribute(t));
             if (!type) break;
             const exp = curr.getAttribute(type);
             curr.removeAttribute(type);
-            // Store template clone for reuse
             branches.push({ template: curr.cloneNode(true), exp, type, el: null, scope: null });
             const next = curr.nextElementSibling;
             curr.remove();
@@ -513,8 +384,7 @@ const compile = (el, scope, cs) => {
             branches.forEach(b => {
                 if (b === match) {
                     if (!b.el || !b.el.parentNode) {
-                        // Always create fresh clone from template
-                        if (b.scope) { b.scope.cleanup(); }
+                        if (b.scope) b.scope.cleanup();
                         b.el = b.template.cloneNode(true);
                         b.scope = new Scope({ ...scope });
                         parent.insertBefore(b.el, ph);
@@ -534,18 +404,20 @@ const compile = (el, scope, cs) => {
 
     if (el.hasAttribute('z-else-if') || el.hasAttribute('z-else')) return;
 
-    // z-for with key-based diffing for better performance
+    // Optimized z-for with key-based diffing
     if (el.hasAttribute('z-for')) {
         const rawFor = el.getAttribute('z-for');
-        const forMatch = rawFor.match(/^\s*(?:\((\w+)\s*,\s*(\w+)\)|(?:(\w+)))\s+(?:in|of)\s+(.*)$/);
+        
+        // Parse for expression: item in list OR (item, index) in list
+        const forMatch = rawFor.match(/^\s*(?:\((\w+)\s*,\s*(\w+)\)|(\w+))\s+(?:in|of)\s+(.*)$/);
         let itemName = 'item', indexName = 'index', listExp = rawFor;
         
         if (forMatch) {
-            itemName = forMatch[1] || forMatch[3] || 'item';
+            itemName = forMatch[1] || forMatch[3];
             indexName = forMatch[2] || 'index';
             listExp = forMatch[4];
         } else {
-            const parts = rawFor.split(/\s+in\s+|\s+of\s+/);
+            const parts = rawFor.split(/\s+(?:in|of)\s+/);
             if (parts.length === 2) {
                 itemName = parts[0].trim();
                 listExp = parts[1].trim();
@@ -560,50 +432,40 @@ const compile = (el, scope, cs) => {
         el.remove();
         el.removeAttribute('z-for');
         
-        // Get key attribute for optimized diffing
         const keyAttr = el.getAttribute(':key') || el.getAttribute('z-key');
         if (keyAttr) {
             el.removeAttribute(':key');
             el.removeAttribute('z-key');
         }
 
-        let itemsMap = new Map(); // key -> { clone, scope, item, index }
-        let currentKeys = [];
+        let itemsMap = new Map();
         
-        // Function to handle array updates with key-based diffing
         const updateList = () => {
-            // Get new array
             let arr = evalExp(listExp, scope);
             
-            // If it's a ref, get its value
-            if (arr && arr._isRef) {
-                arr = arr.value;
-            }
-            
-            if (!arr) arr = [];
-            if (!Array.isArray(arr)) arr = [];
+            // Unwrap refs
+            if (arr?._isRef) arr = arr.value;
+            if (!Array.isArray(arr)) arr = arr ? [] : [];
 
-            const newKeys = [];
             const newItemsMap = new Map();
+            const newKeys = [];
             
             arr.forEach((v, i) => {
-                // Generate key for this item
+                // Generate key
                 const key = keyAttr 
                     ? evalExp(keyAttr, { ...scope, [itemName]: { _isRef: true, value: v }, [indexName]: { _isRef: true, value: i } })
                     : i;
                 
                 newKeys.push(key);
-                
-                // Check if we can reuse existing item
                 const existing = itemsMap.get(key);
                 
                 if (existing) {
-                    // Update existing item's refs
+                    // Reuse existing element
                     existing.itemRef.value = v;
                     existing.indexRef.value = i;
                     newItemsMap.set(key, existing);
                 } else {
-                    // Create new item
+                    // Create new element
                     const clone = el.cloneNode(true);
                     const itemRef = ref(v);
                     const indexRef = ref(i);
@@ -619,7 +481,7 @@ const compile = (el, scope, cs) => {
                 }
             });
             
-            // Remove items that no longer exist
+            // Cleanup removed items
             for (const [key, item] of itemsMap) {
                 if (!newItemsMap.has(key)) {
                     item.clone.remove();
@@ -627,7 +489,7 @@ const compile = (el, scope, cs) => {
                 }
             }
             
-            // Reorder/insert items in correct position
+            // Reorder elements efficiently
             let prevNode = ph;
             for (const key of newKeys) {
                 const item = newItemsMap.get(key);
@@ -638,7 +500,6 @@ const compile = (el, scope, cs) => {
             }
             
             itemsMap = newItemsMap;
-            currentKeys = newKeys;
         };
 
         cs.addEffect(watchEffect(updateList));
@@ -651,9 +512,11 @@ const compile = (el, scope, cs) => {
         return;
     }
 
-    // Directives
-    Array.from(el.attributes).forEach(({ name, value }) => {
-        // Events
+    // Optimized directive processing
+    const attrs = Array.from(el.attributes);
+    
+    for (const { name, value } of attrs) {
+        // Event handlers
         if (name.startsWith('@') || name.startsWith('z-on:')) {
             const ev = name.startsWith('@') ? name.slice(1) : name.slice(5);
             el.removeAttribute(name);
@@ -664,7 +527,7 @@ const compile = (el, scope, cs) => {
             el.addEventListener(ev, fn);
             cs.addListener(el, ev, fn);
         }
-        // z-model
+        // Two-way binding
         else if (name === 'z-model') {
             el.removeAttribute(name);
             const isCheck = el.type === 'checkbox' || el.type === 'radio';
@@ -683,10 +546,12 @@ const compile = (el, scope, cs) => {
             cs.addListener(el, ev, fn);
             cs.addEffect(watchEffect(() => {
                 const res = evalExp(value, scope);
-                el.type === 'radio' ? el.checked = String(el.value) === String(res) : el[prop] = res;
+                el.type === 'radio' 
+                    ? el.checked = String(el.value) === String(res) 
+                    : el[prop] = res;
             }));
         }
-        // Bindings
+        // Reactive bindings
         else if (name.startsWith(':') || name.startsWith('z-')) {
             const attr = name.startsWith(':') ? name.slice(1) : name;
             el.removeAttribute(name);
@@ -694,74 +559,105 @@ const compile = (el, scope, cs) => {
 
             cs.addEffect(watchEffect(() => {
                 const res = evalExp(value, scope);
-                if (attr === 'z-text') el.textContent = res ?? '';
-                else if (attr === 'z-html') {
-                    // WARNING: z-html can cause XSS if used with untrusted content
-                    // Consider using a sanitizer library in production
+                
+                // Special directives
+                if (attr === 'z-text') {
+                    el.textContent = res ?? '';
+                } else if (attr === 'z-html') {
                     el.innerHTML = res ?? '';
+                } else if (attr === 'z-show') {
+                    el.style.display = res ? '' : 'none';
                 }
-                else if (attr === 'z-show') el.style.display = res ? '' : 'none';
+                // Style object binding
                 else if (attr === 'style' && isObj(res)) {
-                    // Reset styles and apply new ones
-                    Object.keys(res).forEach(k => {
-                        el.style[k] = res[k];
-                    });
+                    Object.keys(res).forEach(k => el.style[k] = res[k]);
                 }
-                else if (attr === 'class' && isObj(res)) {
-                    const dynamic = Object.keys(res).filter(k => res[k]).join(' ');
-                    el.className = (staticClass + ' ' + dynamic).trim();
-                } else if (attr === 'class' && typeof res === 'string') {
-                    el.className = (staticClass + ' ' + res).trim();
-                } else if (typeof res === 'boolean') {
-                    // Handle boolean attributes (disabled, checked, etc.)
-                    const setName = attr.startsWith('z-') ? attr.slice(2) : attr;
-                    if (res) {
-                        el.setAttribute(setName, '');
-                    } else {
-                        el.removeAttribute(setName);
+                // Class binding
+                else if (attr === 'class') {
+                    if (isObj(res)) {
+                        const dynamic = Object.keys(res).filter(k => res[k]).join(' ');
+                        el.className = (staticClass + ' ' + dynamic).trim();
+                    } else if (typeof res === 'string') {
+                        el.className = (staticClass + ' ' + res).trim();
                     }
-                } else {
+                }
+                // Boolean attributes
+                else if (typeof res === 'boolean') {
                     const setName = attr.startsWith('z-') ? attr.slice(2) : attr;
-                    if (res == null) {
-                        el.removeAttribute(setName);
-                    } else {
-                        el.setAttribute(setName, res);
-                    }
+                    res ? el.setAttribute(setName, '') : el.removeAttribute(setName);
+                }
+                // Regular attributes
+                else {
+                    const setName = attr.startsWith('z-') ? attr.slice(2) : attr;
+                    res == null ? el.removeAttribute(setName) : el.setAttribute(setName, res);
                 }
             }));
         }
-    });
+    }
 
+    // Recursively compile children
     Array.from(el.childNodes).forEach(child => compile(child, scope, cs));
 };
 
-// --- Router ---
-const isBrowser = typeof window !== 'undefined';
-const getQuery = () => isBrowser ? Object.fromEntries(new URLSearchParams(location.search)) : {};
+// --- Plugin System ---
+const installedPlugins = new Set();
 
-const _r = {
-    h: ref(isBrowser ? location.hash : ''),
-    p: ref(isBrowser ? location.pathname : ''),
-    q: ref(isBrowser ? getQuery() : {})
+/**
+ * Install a plugin into Zog.js
+ * 
+ * Usage:
+ *   use(MyPlugin)
+ *   use(MyPlugin, { option: 'value' })
+ * 
+ * Plugin structure:
+ *   export default {
+ *     install(zog, options) {
+ *       // Plugin logic
+ *     }
+ *   }
+ */
+export const use = (plugin, options = {}) => {
+    if (installedPlugins.has(plugin)) {
+        if (typeof console !== 'undefined') {
+            console.warn('Plugin already installed:', plugin);
+        }
+        return;
+    }
+
+    if (typeof plugin.install !== 'function') {
+        if (typeof console !== 'undefined') {
+            console.error('Plugin must have an install method:', plugin);
+        }
+        return;
+    }
+
+    installedPlugins.add(plugin);
+
+    const zogAPI = {
+        reactive,
+        ref,
+        computed,
+        watchEffect,
+        createApp,
+        // Internal utilities for advanced plugins
+        utils: {
+            isObj,
+            evalExp,
+            Dep,
+            ReactiveEffect
+        }
+    };
+
+    try {
+        plugin.install(zogAPI, options);
+    } catch (err) {
+        if (typeof console !== 'undefined') {
+            console.error('Plugin installation failed:', plugin, err);
+        }
+    }
 };
 
-const sync = () => {
-    if (!isBrowser) return;
-    _r.h.value = location.hash;
-    _r.p.value = location.pathname;
-    _r.q.value = getQuery();
-};
-
-if (isBrowser) {
-    addEventListener('hashchange', sync);
-    addEventListener('popstate', sync);
-}
-
-export const route = {
-    get hash() { return _r.h.value; },
-    get path() { return _r.p.value; },
-    get query() { return _r.q.value; }
-};
+export const nextTick = fn => Promise.resolve().then(fn);
 
 // --- App ---
 export const createApp = setup => {
@@ -780,79 +676,3 @@ export const createApp = setup => {
         }
     };
 };
-
-// --- Utils ---
-export const nextTick = fn => Promise.resolve().then(fn);
-export const unref = v => v?._isRef ? v.value : v;
-export const toRef = (obj, key) => {
-    const val = obj[key];
-    if (val?._isRef) return val;
-    return {
-        _isRef: true,
-        get value() { return obj[key]; },
-        set value(v) { obj[key] = v; }
-    };
-};
-
-// Shallow ref - doesn't make nested objects reactive
-export const shallowRef = val => {
-    const dep = new Dep();
-    return {
-        _isRef: true,
-        _isShallow: true,
-        get value() { dep.depend(); return val; },
-        set value(v) { if (!Object.is(v, val)) { val = v; dep.notify(); } },
-        toString: () => String(val)
-    };
-};
-
-// Shallow reactive - only top-level properties are reactive
-export const shallowReactive = target => {
-    if (!isObj(target)) return target;
-    
-    const depsMap = new Map();
-    const getDep = k => {
-        let d = depsMap.get(k);
-        if (!d) { d = new Dep(); depsMap.set(k, d); }
-        return d;
-    };
-
-    return new Proxy(target, {
-        get: (t, k) => {
-            if (k === IS_REACTIVE) return true;
-            if (k === RAW) return t;
-            getDep(k).depend();
-            return t[k]; // Don't make nested reactive
-        },
-        set: (t, k, v) => {
-            const old = t[k];
-            t[k] = v;
-            if (!Object.is(old, v)) getDep(k).notify();
-            return true;
-        }
-    });
-};
-
-// Trigger reactivity manually
-export const triggerRef = (r) => {
-    if (r && r._isRef) {
-        // Force notify by accessing internal dep
-        r.value = r.value;
-    }
-};
-
-// Helper function to access the raw object (exported version)
-export { toRaw };
-
-// Function to check if value is reactive
-export const isReactive = (value) => {
-    return value ? !!value[IS_REACTIVE] : false;
-};
-
-// Function to check if value is a ref
-export const isRef = (value) => {
-    return value ? !!value._isRef : false;
-};
-
-// Object to access symbols
-export const symbols = { RAW, IS_REACTIVE, IS_ARRAY };
