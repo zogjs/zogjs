@@ -20,12 +20,17 @@
   },
   "homepage": "https://zogjs.com",
   "devDependencies": {
+    "@vitest/coverage-v8": "4.0.15",
+    "@vitest/ui": "4.0.15",
     "terser": "^5.44.1",
     "vite": "^7.2.4"
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
   },
   "keywords": [
     "zogjs",
@@ -33,7 +38,6 @@
     "reactivity",
     "minimal-js",
     "javascript-reactive"
-    
   ],
   "author": "Benjamin Khalife",
   "license": "MIT"
