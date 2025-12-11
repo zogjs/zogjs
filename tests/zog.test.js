@@ -1868,3 +1868,392 @@ describe('Integration Tests', () => {
         expect(document.querySelectorAll('li').length).toBe(3);
     });
 });
+
+describe('z-for with :key directive', () => {
+  let container;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    container.id = 'app';
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+    container = null;
+  });
+
+  it('should render items with key value of 0', () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive([
+        { id: 0, name: 'First' },
+        { id: 1, name: 'Second' },
+        { id: 2, name: 'Third' }
+      ])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(3);
+    expect(divs[0].textContent).toBe('First');
+    expect(divs[1].textContent).toBe('Second');
+    expect(divs[2].textContent).toBe('Third');
+  });
+
+  it('should handle boolean false as key value', () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.active">{{ item.name }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive([
+        { active: false, name: 'Inactive' },
+        { active: true, name: 'Active' }
+      ])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(2);
+    expect(divs[0].textContent).toBe('Inactive');
+    expect(divs[1].textContent).toBe('Active');
+  });
+
+  it('should handle empty string as key value', () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.code">{{ item.name }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive([
+        { code: '', name: 'No Code' },
+        { code: 'ABC', name: 'With Code' }
+      ])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(2);
+    expect(divs[0].textContent).toBe('No Code');
+    expect(divs[1].textContent).toBe('With Code');
+  });
+
+  it('should handle numeric zero in different positions', () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.value }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive([
+        { id: 5, value: 'Five' },
+        { id: 0, value: 'Zero' },
+        { id: 3, value: 'Three' },
+        { id: 0, value: 'Another Zero' } // Duplicate key - should replace
+      ])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    // Should have 3 items (duplicate key 0 should only appear once)
+    expect(divs.length).toBe(3);
+    expect(container.textContent).toContain('Zero');
+  });
+
+  it('should reactively update items with key=0', () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
+    
+    const items = reactive([
+      { id: 0, name: 'First' },
+      { id: 1, name: 'Second' }
+    ]);
+    
+    const app = createApp(() => ({ items }));
+    app.mount('#app');
+    
+    let divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(2);
+    expect(divs[0].textContent).toBe('First');
+    
+    // Update item with id=0
+    items[0].name = 'Updated First';
+    
+    // Wait for reactivity
+    setTimeout(() => {
+      divs = container.querySelectorAll('div');
+      expect(divs[0].textContent).toBe('Updated First');
+    }, 0);
+  });
+
+  it('should handle adding item with key=0 dynamically', async () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
+    
+    const items = reactive([
+      { id: 1, name: 'Second' },
+      { id: 2, name: 'Third' }
+    ]);
+    
+    const app = createApp(() => ({ items }));
+    app.mount('#app');
+    
+    let divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(2);
+    
+    // Add item with id=0 at the beginning
+    items.unshift({ id: 0, name: 'First' });
+    
+    // Wait for reactivity
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(3);
+    expect(divs[0].textContent).toBe('First');
+  });
+
+  it('should handle removing item with key=0', async () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
+    
+    const items = reactive([
+      { id: 0, name: 'First' },
+      { id: 1, name: 'Second' },
+      { id: 2, name: 'Third' }
+    ]);
+    
+    const app = createApp(() => ({ items }));
+    app.mount('#app');
+    
+    let divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(3);
+    
+    // Remove item with id=0
+    items.shift();
+    
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(2);
+    expect(divs[0].textContent).toBe('Second');
+  });
+
+  it('should handle index as key when item value is 0', () => {
+    container.innerHTML = '<div z-for="item in numbers" :key="item">Value: {{ item }}</div>';
+    
+    const app = createApp(() => ({
+      numbers: reactive([0, 1, 2, 3])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(4);
+    expect(divs[0].textContent).toBe('Value: 0');
+    expect(divs[1].textContent).toBe('Value: 1');
+  });
+
+  it('should preserve DOM elements when key=0 exists during re-render', async () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id"><span>{{ item.name }}</span></div>';
+    
+    const items = reactive([
+      { id: 0, name: 'First' },
+      { id: 1, name: 'Second' }
+    ]);
+    
+    const app = createApp(() => ({ items }));
+    app.mount('#app');
+    
+    const firstSpan = container.querySelector('span');
+    const spanReference = firstSpan;
+    
+    // Update array but keep same keys
+    items[1].name = 'Updated Second';
+    
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    const firstSpanAfter = container.querySelector('span');
+    // Should be the same DOM element (not re-created)
+    expect(firstSpanAfter).toBe(spanReference);
+  });
+
+  it('should handle computed key that evaluates to 0', () => {
+    container.innerHTML = '<div z-for="(item, idx) in items" :key="idx % 2">{{ item }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive(['A', 'B', 'C', 'D'])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    // idx % 2 will produce: 0, 1, 0, 1 (so only 2 unique keys)
+    // Last occurrence should win
+    expect(divs.length).toBe(2);
+  });
+
+  it('should handle NaN as key (edge case)', () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.value / item.divisor">{{ item.name }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive([
+        { name: 'Invalid', value: 0, divisor: 0 }, // 0/0 = NaN
+        { name: 'Valid', value: 10, divisor: 2 }
+      ])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    expect(divs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should work without :key attribute and index starts at 0', () => {
+    container.innerHTML = '<div z-for="item in items">{{ item }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive(['First', 'Second', 'Third'])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(3);
+    expect(divs[0].textContent).toBe('First');
+  });
+
+  it('should handle mixed falsy and truthy keys', () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive([
+        { id: 0, name: 'Zero' },
+        { id: false, name: 'False' },
+        { id: '', name: 'Empty' },
+        { id: null, name: 'Null' },
+        { id: undefined, name: 'Undefined' },
+        { id: 1, name: 'One' },
+        { id: 'text', name: 'Text' }
+      ])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    expect(divs.length).toBeGreaterThan(0);
+    expect(container.textContent).toContain('Zero');
+    expect(container.textContent).toContain('One');
+  });
+
+  it('should correctly handle array mutations with key=0', async () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
+    
+    const items = reactive([
+      { id: 0, name: 'Zero' },
+      { id: 1, name: 'One' }
+    ]);
+    
+    const app = createApp(() => ({ items }));
+    app.mount('#app');
+    
+    // Push new item
+    items.push({ id: 2, name: 'Two' });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    let divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(3);
+    
+    // Sort array (item with id=0 should still be there)
+    items.sort((a, b) => b.id - a.id);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(3);
+    expect(container.textContent).toContain('Zero');
+  });
+
+  it('should handle splice that affects item with key=0', async () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
+    
+    const items = reactive([
+      { id: 0, name: 'Zero' },
+      { id: 1, name: 'One' },
+      { id: 2, name: 'Two' }
+    ]);
+    
+    const app = createApp(() => ({ items }));
+    app.mount('#app');
+    
+    // Remove item at index 1, item with id=0 should remain
+    items.splice(1, 1);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    const divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(2);
+    expect(divs[0].textContent).toBe('Zero');
+    expect(divs[1].textContent).toBe('Two');
+  });
+});
+
+describe('z-for edge cases with falsy keys', () => {
+  let container;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    container.id = 'app';
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
+
+  it('should distinguish between 0 and "0" as keys', () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive([
+        { id: 0, name: 'Number Zero' },
+        { id: '0', name: 'String Zero' }
+      ])
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    // These are different keys, so both should render
+    expect(divs.length).toBe(2);
+  });
+
+  it('should handle transition from no items to items with key=0', async () => {
+    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
+    
+    const items = reactive([]);
+    
+    const app = createApp(() => ({ items }));
+    app.mount('#app');
+    
+    let divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(0);
+    
+    // Add items including one with key=0
+    items.push({ id: 0, name: 'First' });
+    items.push({ id: 1, name: 'Second' });
+    
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(2);
+    expect(divs[0].textContent).toBe('First');
+  });
+
+  it('should handle ref values as keys with value 0', () => {
+    container.innerHTML = '<div z-for="item in items" :key="counter.value + item">{{ item }}</div>';
+    
+    const app = createApp(() => ({
+      items: reactive([1, 2, 3]),
+      counter: ref(0)
+    }));
+    
+    app.mount('#app');
+    
+    const divs = container.querySelectorAll('div');
+    expect(divs.length).toBe(3);
+  });
+});
