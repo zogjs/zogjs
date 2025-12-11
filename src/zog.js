@@ -1,5 +1,5 @@
 /**
- * Zog.js v0.2.5 - Full reactivity with minimal code size
+ * Zog.js v0.2.6 - Full reactivity with minimal code size
  */
 
 // --- Reactivity Core ---
@@ -326,9 +326,7 @@ const compile = (el, scope, cs) => {
             const ev = isCheck || el.tagName === 'SELECT' ? 'change' : 'input';
             const fn = () => {
                 if (el.type === 'radio' && !el.checked) return;
-                const target = scope[value];
-                if (target?._isRef) target.value = el[prop];
-                else if (scope[value] !== undefined) scope[value] = el[prop];
+                scope[value]?._isRef ? scope[value].value = el[prop] : evalExp(value+'=_v', {...scope, _v: el[prop]});
             };
             el.addEventListener(ev, fn);
             cs.addListener(el, ev, fn);
