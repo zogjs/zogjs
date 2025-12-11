@@ -1,5 +1,5 @@
 /**
- * Zog.js v2.2.1 - Full reactivity with minimal code size
+ * Zog.js v0.2.5 - Full reactivity with minimal code size
  */
 
 // --- Reactivity Core ---
@@ -91,7 +91,7 @@ export const reactive = target => {
 
     const isArray = Array.isArray(target);
     const depsMap = new Map(), iterationDep = new Dep();
-    const getDep = k => depsMap.get(k) || (depsMap.set(k, new Dep()), depsMap.get(k));
+    const getDep = k => { let d = depsMap.get(k); return d || (depsMap.set(k, d = new Dep()), d); };
 
     const createArrayMethod = method => {
         const isMutating = arrayMutators.has(method), isIterating = arrayIterators.has(method);
@@ -184,14 +184,15 @@ class Scope {
 const expCache = new Map();
 const evalExp = (exp, scope) => {
     try {
-        let cached = expCache.get(exp);
+        const keys = Object.keys(scope);
+        const cacheKey = exp + '|' + keys.join(',');
+        let cached = expCache.get(cacheKey);
         if (!cached) {
-            const keys = Object.keys(scope);
-            cached = { fn: Function(...keys, `"use strict";return(${exp})`), keys };
+            cached = Function(...keys, `"use strict";return(${exp})`);
             if (expCache.size > 200) expCache.delete(expCache.keys().next().value);
-            expCache.set(exp, cached);
+            expCache.set(cacheKey, cached);
         }
-        return cached.fn(...cached.keys.map(k => { const v = scope[k]; return v?._isRef ? v.value : v; }));
+        return cached(...keys.map(k => { const v = scope[k]; return v?._isRef ? v.value : v; }));
     } catch { return undefined; }
 };
 
