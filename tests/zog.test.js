@@ -1869,391 +1869,304 @@ describe('Integration Tests', () => {
     });
 });
 
-describe('z-for with :key directive', () => {
-  let container;
 
-  beforeEach(() => {
-    container = document.createElement('div');
-    container.id = 'app';
-    document.body.appendChild(container);
-  });
 
-  afterEach(() => {
-    document.body.removeChild(container);
-    container = null;
-  });
 
-  it('should render items with key value of 0', () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive([
-        { id: 0, name: 'First' },
-        { id: 1, name: 'Second' },
-        { id: 2, name: 'Third' }
-      ])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(3);
-    expect(divs[0].textContent).toBe('First');
-    expect(divs[1].textContent).toBe('Second');
-    expect(divs[2].textContent).toBe('Third');
-  });
 
-  it('should handle boolean false as key value', () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.active">{{ item.name }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive([
-        { active: false, name: 'Inactive' },
-        { active: true, name: 'Active' }
-      ])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(2);
-    expect(divs[0].textContent).toBe('Inactive');
-    expect(divs[1].textContent).toBe('Active');
-  });
 
-  it('should handle empty string as key value', () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.code">{{ item.name }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive([
-        { code: '', name: 'No Code' },
-        { code: 'ABC', name: 'With Code' }
-      ])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(2);
-    expect(divs[0].textContent).toBe('No Code');
-    expect(divs[1].textContent).toBe('With Code');
-  });
 
-  it('should handle numeric zero in different positions', () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.value }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive([
-        { id: 5, value: 'Five' },
-        { id: 0, value: 'Zero' },
-        { id: 3, value: 'Three' },
-        { id: 0, value: 'Another Zero' } // Duplicate key - should replace
-      ])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    // Should have 3 items (duplicate key 0 should only appear once)
-    expect(divs.length).toBe(3);
-    expect(container.textContent).toContain('Zero');
-  });
 
-  it('should reactively update items with key=0', () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
-    
-    const items = reactive([
-      { id: 0, name: 'First' },
-      { id: 1, name: 'Second' }
-    ]);
-    
-    const app = createApp(() => ({ items }));
-    app.mount('#app');
-    
-    let divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(2);
-    expect(divs[0].textContent).toBe('First');
-    
-    // Update item with id=0
-    items[0].name = 'Updated First';
-    
-    // Wait for reactivity
-    setTimeout(() => {
-      divs = container.querySelectorAll('div');
-      expect(divs[0].textContent).toBe('Updated First');
-    }, 0);
-  });
+describe('z-for directive', () => {
+    let container;
+    let app;
 
-  it('should handle adding item with key=0 dynamically', async () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
-    
-    const items = reactive([
-      { id: 1, name: 'Second' },
-      { id: 2, name: 'Third' }
-    ]);
-    
-    const app = createApp(() => ({ items }));
-    app.mount('#app');
-    
-    let divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(2);
-    
-    // Add item with id=0 at the beginning
-    items.unshift({ id: 0, name: 'First' });
-    
-    // Wait for reactivity
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(3);
-    expect(divs[0].textContent).toBe('First');
-  });
 
-  it('should handle removing item with key=0', async () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
-    
-    const items = reactive([
-      { id: 0, name: 'First' },
-      { id: 1, name: 'Second' },
-      { id: 2, name: 'Third' }
-    ]);
-    
-    const app = createApp(() => ({ items }));
-    app.mount('#app');
-    
-    let divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(3);
-    
-    // Remove item with id=0
-    items.shift();
-    
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(2);
-    expect(divs[0].textContent).toBe('Second');
-  });
+    describe('key=0 bug fix', () => {
+        it('should render item with index 0 when using :key="index"', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(item, index) in items" :key="index">{{ index }}-{{ item }}</div>
+                </div>
+            `;
+            app = createApp(() => ({
+                items: ref(['a', 'b', 'c'])
+            })).mount('#app');
+            await Promise.resolve();
 
-  it('should handle index as key when item value is 0', () => {
-    container.innerHTML = '<div z-for="item in numbers" :key="item">Value: {{ item }}</div>';
-    
-    const app = createApp(() => ({
-      numbers: reactive([0, 1, 2, 3])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(4);
-    expect(divs[0].textContent).toBe('Value: 0');
-    expect(divs[1].textContent).toBe('Value: 1');
-  });
+            const divs = document.body.querySelectorAll('#app > div');
+            console.info('#divs:', divs)
+            expect(divs.length).toBe(3);
+            expect(divs[0].textContent).toBe('0-a');
+            expect(divs[1].textContent).toBe('1-b');
+            expect(divs[2].textContent).toBe('2-c');
+        });
 
-  it('should preserve DOM elements when key=0 exists during re-render', async () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id"><span>{{ item.name }}</span></div>';
-    
-    const items = reactive([
-      { id: 0, name: 'First' },
-      { id: 1, name: 'Second' }
-    ]);
-    
-    const app = createApp(() => ({ items }));
-    app.mount('#app');
-    
-    const firstSpan = container.querySelector('span');
-    const spanReference = firstSpan;
-    
-    // Update array but keep same keys
-    items[1].name = 'Updated Second';
-    
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    const firstSpanAfter = container.querySelector('span');
-    // Should be the same DOM element (not re-created)
-    expect(firstSpanAfter).toBe(spanReference);
-  });
+        it('should render single item at index 0', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <span z-for="(item, i) in list" :key="i">{{ item }}</span>
+                </div>
+            `;
+            app = createApp(() => ({
+                list: ref(['only-one'])
+            })).mount('#app');
+            await Promise.resolve();
 
-  it('should handle computed key that evaluates to 0', () => {
-    container.innerHTML = '<div z-for="(item, idx) in items" :key="idx % 2">{{ item }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive(['A', 'B', 'C', 'D'])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    // idx % 2 will produce: 0, 1, 0, 1 (so only 2 unique keys)
-    // Last occurrence should win
-    expect(divs.length).toBe(2);
-  });
+            const spans = document.body.querySelectorAll('#app > span');
+            expect(spans.length).toBe(1);
+            expect(spans[0].textContent).toBe('only-one');
+        });
 
-  it('should handle NaN as key (edge case)', () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.value / item.divisor">{{ item.name }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive([
-        { name: 'Invalid', value: 0, divisor: 0 }, // 0/0 = NaN
-        { name: 'Valid', value: 10, divisor: 2 }
-      ])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    expect(divs.length).toBeGreaterThanOrEqual(1);
-  });
+        it('should handle numeric key values including 0', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="item in items" :key="item.id">{{ item.name }}</div>
+                </div>
+            `;
+            app = createApp(() => ({
+                items: ref([
+                    { id: 0, name: 'zero' },
+                    { id: 1, name: 'one' },
+                    { id: 2, name: 'two' }
+                ])
+            })).mount('#app');
+            await Promise.resolve();
 
-  it('should work without :key attribute and index starts at 0', () => {
-    container.innerHTML = '<div z-for="item in items">{{ item }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive(['First', 'Second', 'Third'])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(3);
-    expect(divs[0].textContent).toBe('First');
-  });
+            const divs = document.body.querySelectorAll('#app > div');
+            expect(divs.length).toBe(3);
+            expect(divs[0].textContent).toBe('zero');
+            expect(divs[1].textContent).toBe('one');
+            expect(divs[2].textContent).toBe('two');
+        });
+    });
 
-  it('should handle mixed falsy and truthy keys', () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive([
-        { id: 0, name: 'Zero' },
-        { id: false, name: 'False' },
-        { id: '', name: 'Empty' },
-        { id: null, name: 'Null' },
-        { id: undefined, name: 'Undefined' },
-        { id: 1, name: 'One' },
-        { id: 'text', name: 'Text' }
-      ])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    expect(divs.length).toBeGreaterThan(0);
-    expect(container.textContent).toContain('Zero');
-    expect(container.textContent).toContain('One');
-  });
+    describe('falsy key values', () => {
+        it('should handle empty string as key', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="item in items" :key="item.key">{{ item.val }}</div>
+                </div>
+            `;
+            app = createApp(() => ({
+                items: ref([
+                    { key: '', val: 'empty' },
+                    { key: 'a', val: 'letter' }
+                ])
+            })).mount('#app');
+            await Promise.resolve();
 
-  it('should correctly handle array mutations with key=0', async () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
-    
-    const items = reactive([
-      { id: 0, name: 'Zero' },
-      { id: 1, name: 'One' }
-    ]);
-    
-    const app = createApp(() => ({ items }));
-    app.mount('#app');
-    
-    // Push new item
-    items.push({ id: 2, name: 'Two' });
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    let divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(3);
-    
-    // Sort array (item with id=0 should still be there)
-    items.sort((a, b) => b.id - a.id);
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(3);
-    expect(container.textContent).toContain('Zero');
-  });
+            const divs = document.body.querySelectorAll('#app > div');
+            expect(divs.length).toBe(2);
+            expect(divs[0].textContent).toBe('empty');
+        });
 
-  it('should handle splice that affects item with key=0', async () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
-    
-    const items = reactive([
-      { id: 0, name: 'Zero' },
-      { id: 1, name: 'One' },
-      { id: 2, name: 'Two' }
-    ]);
-    
-    const app = createApp(() => ({ items }));
-    app.mount('#app');
-    
-    // Remove item at index 1, item with id=0 should remain
-    items.splice(1, 1);
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    const divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(2);
-    expect(divs[0].textContent).toBe('Zero');
-    expect(divs[1].textContent).toBe('Two');
-  });
-});
+        it('should handle null/undefined keys gracefully', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(item, i) in items" :key="item.id">{{ i }}-{{ item.name }}</div>
+                </div>
+            `;
+            app = createApp(() => ({
+                items: ref([
+                    { id: null, name: 'null-key' },
+                    { id: undefined, name: 'undef-key' },
+                    { id: 1, name: 'normal' }
+                ])
+            })).mount('#app');
+            await Promise.resolve();
 
-describe('z-for edge cases with falsy keys', () => {
-  let container;
+            const divs = document.body.querySelectorAll('#app > div');
+            expect(divs.length).toBe(3);
+        });
+    });
 
-  beforeEach(() => {
-    container = document.createElement('div');
-    container.id = 'app';
-    document.body.appendChild(container);
-  });
+    describe('reactivity with index 0', () => {
+        it('should update item at index 0 reactively', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(item, index) in items" :key="index">{{ item }}</div>
+                </div>
+            `;
+            const items = ref(['first', 'second']);
+            app = createApp(() => ({ items })).mount('#app');
+            await Promise.resolve();
 
-  afterEach(() => {
-    document.body.removeChild(container);
-  });
+            expect(document.body.querySelectorAll('#app > div')[0].textContent).toBe('first');
 
-  it('should distinguish between 0 and "0" as keys', () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive([
-        { id: 0, name: 'Number Zero' },
-        { id: '0', name: 'String Zero' }
-      ])
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    // These are different keys, so both should render
-    expect(divs.length).toBe(2);
-  });
+            items.value = ['updated-first', 'second'];
+            await Promise.resolve();
 
-  it('should handle transition from no items to items with key=0', async () => {
-    container.innerHTML = '<div z-for="item in items" :key="item.id">{{ item.name }}</div>';
-    
-    const items = reactive([]);
-    
-    const app = createApp(() => ({ items }));
-    app.mount('#app');
-    
-    let divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(0);
-    
-    // Add items including one with key=0
-    items.push({ id: 0, name: 'First' });
-    items.push({ id: 1, name: 'Second' });
-    
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(2);
-    expect(divs[0].textContent).toBe('First');
-  });
+            expect(document.body.querySelectorAll('#app > div')[0].textContent).toBe('updated-first');
+        });
 
-  it('should handle ref values as keys with value 0', () => {
-    container.innerHTML = '<div z-for="item in items" :key="counter.value + item">{{ item }}</div>';
-    
-    const app = createApp(() => ({
-      items: reactive([1, 2, 3]),
-      counter: ref(0)
-    }));
-    
-    app.mount('#app');
-    
-    const divs = container.querySelectorAll('div');
-    expect(divs.length).toBe(3);
-  });
+        it('should handle prepending items (shift all indexes)', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(item, index) in items" :key="index">{{ index }}-{{ item }}</div>
+                </div>
+            `;
+            const items = ref(['a', 'b']);
+            app = createApp(() => ({ items })).mount('#app');
+            await Promise.resolve();
+
+            items.value = ['new', 'a', 'b'];
+            await Promise.resolve();
+
+            const divs = document.body.querySelectorAll('#app > div');
+            expect(divs.length).toBe(3);
+            expect(divs[0].textContent).toBe('0-new');
+            expect(divs[1].textContent).toBe('1-a');
+            expect(divs[2].textContent).toBe('2-b');
+        });
+
+        it('should handle removing item at index 0', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(item, i) in items" :key="i">{{ item }}</div>
+                </div>
+            `;
+            const items = ref(['remove-me', 'keep', 'also-keep']);
+            app = createApp(() => ({ items })).mount('#app');
+            await Promise.resolve();
+
+            expect(document.body.querySelectorAll('#app > div').length).toBe(3);
+
+            items.value = ['keep', 'also-keep'];
+            await Promise.resolve();
+
+            const divs = document.body.querySelectorAll('#app > div');
+            expect(divs.length).toBe(2);
+            expect(divs[0].textContent).toBe('keep');
+        });
+    });
+
+    describe('z-for without key', () => {
+        it('should work without explicit key (uses index internally)', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <span z-for="item in items">{{ item }}</span>
+                </div>
+            `;
+            app = createApp(() => ({
+                items: ref(['x', 'y', 'z'])
+            })).mount('#app');
+            await Promise.resolve();
+
+            const spans = document.body.querySelectorAll('#app > span');
+            expect(spans.length).toBe(3);
+            expect(spans[0].textContent).toBe('x');
+        });
+
+        it('should render first item without key', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="n in nums">{{ n }}</div>
+                </div>
+            `;
+            app = createApp(() => ({
+                nums: ref([100, 200, 300])
+            })).mount('#app');
+            await Promise.resolve();
+
+            const divs = document.body.querySelectorAll('#app > div');
+            expect(divs.length).toBe(3);
+            expect(divs[0].textContent).toBe('100');
+        });
+    });
+
+    describe('empty and edge cases', () => {
+        it('should handle empty array', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(item, i) in items" :key="i">{{ item }}</div>
+                </div>
+            `;
+            app = createApp(() => ({
+                items: ref([])
+            })).mount('#app');
+            await Promise.resolve();
+
+            expect(document.body.querySelectorAll('#app > div').length).toBe(0);
+        });
+
+        it('should handle array becoming empty', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(item, i) in items" :key="i">{{ item }}</div>
+                </div>
+            `;
+            const items = ref(['a', 'b']);
+            app = createApp(() => ({ items })).mount('#app');
+            await Promise.resolve();
+
+            expect(document.body.querySelectorAll('#app > div').length).toBe(2);
+
+            items.value = [];
+            await Promise.resolve();
+
+            expect(document.body.querySelectorAll('#app > div').length).toBe(0);
+        });
+
+        it('should handle array growing from empty', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(x, i) in arr" :key="i">{{ x }}</div>
+                </div>
+            `;
+            const arr = ref([]);
+            app = createApp(() => ({ arr })).mount('#app');
+            await Promise.resolve();
+
+            expect(document.body.querySelectorAll('#app > div').length).toBe(0);
+
+            arr.value = ['first'];
+            await Promise.resolve();
+
+            const divs = document.body.querySelectorAll('#app > div');
+            expect(divs.length).toBe(1);
+            expect(divs[0].textContent).toBe('first');
+        });
+    });
+
+    describe('nested data with index 0', () => {
+        it('should handle objects at index 0', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(user, i) in users" :key="i">{{ user.name }}: {{ user.age }}</div>
+                </div>
+            `;
+            app = createApp(() => ({
+                users: ref([
+                    { name: 'Alice', age: 30 },
+                    { name: 'Bob', age: 25 }
+                ])
+            })).mount('#app');
+            await Promise.resolve();
+
+            const divs = document.body.querySelectorAll('#app > div');
+            expect(divs.length).toBe(2);
+            expect(divs[0].textContent).toBe('Alice: 30');
+        });
+
+        it('should handle reactive objects in array', async () => {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div z-for="(item, i) in items" :key="item.id">{{ item.text }}</div>
+                </div>
+            `;
+            const items = reactive([
+                { id: 0, text: 'zero' },
+                { id: 1, text: 'one' }
+            ]);
+            app = createApp(() => ({ items })).mount('#app');
+            await Promise.resolve();
+
+            expect(document.body.querySelectorAll('#app > div')[0].textContent).toBe('zero');
+
+            items[0].text = 'ZERO';
+            await Promise.resolve();
+
+            expect(document.body.querySelectorAll('#app > div')[0].textContent).toBe('ZERO');
+        });
+    });
 });

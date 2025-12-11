@@ -1,5 +1,5 @@
 /**
- * Zog.js v2.2 - Full reactivity with minimal code size
+ * Zog.js v2.2.1 - Full reactivity with minimal code size
  */
 
 // --- Reactivity Core ---
@@ -276,7 +276,7 @@ const compile = (el, scope, cs) => {
 
             const newItemsMap = new Map(), newKeys = [];
             arr.forEach((v, i) => {
-                const key = keyAttr ? evalExp(keyAttr, { ...scope, [itemName]: { _isRef: true, value: v }, [indexName]: { _isRef: true, value: i } }) : i;
+                const key = '_' + (keyAttr ? evalExp(keyAttr, { ...scope, [itemName]: { _isRef: true, value: v }, [indexName]: { _isRef: true, value: i } }) : i);
                 newKeys.push(key);
                 const existing = itemsMap.get(key);
                 if (existing) { existing.itemRef.value = v; existing.indexRef.value = i; newItemsMap.set(key, existing); }
