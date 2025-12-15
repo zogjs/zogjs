@@ -1,5 +1,5 @@
 /**
- * Zog.js v0.2.6 - Full reactivity with minimal code size
+ * Zog.js v0.2.7 - Full reactivity with minimal code size
  */
 
 // --- Reactivity Core ---
@@ -95,7 +95,7 @@ export const reactive = target => {
 
     const createArrayMethod = method => {
         const isMutating = arrayMutators.has(method), isIterating = arrayIterators.has(method);
-        return function(...args) {
+        return function (...args) {
             const raw = this[RAW];
             if (isIterating) { iterationDep.depend(); getDep('length').depend(); }
             const result = raw[method].apply(raw, args.map(a => isObj(a) && a[IS_REACTIVE] ? a[RAW] : a));
@@ -326,7 +326,7 @@ const compile = (el, scope, cs) => {
             const ev = isCheck || el.tagName === 'SELECT' ? 'change' : 'input';
             const fn = () => {
                 if (el.type === 'radio' && !el.checked) return;
-                scope[value]?._isRef ? scope[value].value = el[prop] : evalExp(value+'=_v', {...scope, _v: el[prop]});
+                scope[value]?._isRef ? scope[value].value = el[prop] : evalExp(value + '=_v', { ...scope, _v: el[prop] });
             };
             el.addEventListener(ev, fn);
             cs.addListener(el, ev, fn);
@@ -338,7 +338,7 @@ const compile = (el, scope, cs) => {
         else if (name.startsWith(':') || name.startsWith('z-')) {
             const attr = name[0] === ':' ? name.slice(1) : name;
             el.removeAttribute(name);
-            const staticClass = attr === 'class' ? el.className : '';
+            const staticClass = attr === 'class' ? (el.getAttribute('class') || '') : '';
             cs.addEffect(watchEffect(() => {
                 const res = evalExp(value, scope);
                 if (attr === 'z-text') el.textContent = res ?? '';
@@ -346,8 +346,9 @@ const compile = (el, scope, cs) => {
                 else if (attr === 'z-show') el.style.display = res ? '' : 'none';
                 else if (attr === 'style' && isObj(res)) Object.assign(el.style, res);
                 else if (attr === 'class') {
-                    el.className = isObj(res) ? (staticClass + ' ' + Object.keys(res).filter(k => res[k]).join(' ')).trim()
+                    const classValue = isObj(res) ? (staticClass + ' ' + Object.keys(res).filter(k => res[k]).join(' ')).trim()
                         : typeof res === 'string' ? (staticClass + ' ' + res).trim() : staticClass;
+                    el.setAttribute('class', classValue);
                 }
                 else {
                     const setName = attr.startsWith('z-') ? attr.slice(2) : attr;
