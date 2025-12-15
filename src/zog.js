@@ -1,5 +1,5 @@
 /**
- * Zog.js v0.2.6 - Full reactivity with minimal code size
+ * Zog.js v0.2.7 - Full reactivity with minimal code size
  */
 
 // --- Reactivity Core ---
