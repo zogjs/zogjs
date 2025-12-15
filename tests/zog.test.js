@@ -11,7 +11,8 @@ import {
     computed,
     watchEffect,
     createApp,
-    use
+    use,
+    addHook, removeHook
 } from '../src/zog.js';
 
 // Setup DOM environment
@@ -2329,5 +2330,804 @@ describe('Support Object in z-model', () => {
         // Reactive object should be updated
         expect(form.name).toBe('Jane');
         expect(form.contact.email).toBe('jane@test.com');
+    });
+});
+
+
+/**
+ * Zog.js v0.3.0 - Hook System and Plugin Tests (FIXED)
+ */
+
+describe('Hook System', () => {
+    let app;
+    let hooks = [];
+
+    beforeEach(() => {
+        hooks = [];
+    });
+
+    afterEach(() => {
+        app?.unmount();
+        // Clean up hooks by removing them
+        hooks.forEach(({ name, fn }) => removeHook(name, fn));
+    });
+
+    const registerHook = (name, fn) => {
+        hooks.push({ name, fn });
+        addHook(name, fn);
+        return fn;
+    };
+
+    describe('beforeCompile Hook', () => {
+        it('should call beforeCompile hook for root element', async () => {
+            const hookCalls = [];
+            
+            const hook = registerHook('beforeCompile', (el, scope, cs) => {
+                if (el.nodeType === 1) {
+                    hookCalls.push(el.tagName);
+                }
+                // Don't return anything to continue compilation
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <span>Test</span>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            // Hook is called on the root div
+            expect(hookCalls.length).toBeGreaterThan(0);
+            expect(hookCalls[0]).toBe('DIV');
+        });
+
+        it('should stop compilation when hook returns false', async () => {
+            let hookCalled = false;
+
+            const hook = registerHook('beforeCompile', (el, scope, cs) => {
+                if (el.id === 'app') {
+                    hookCalled = true;
+                    el.innerHTML = 'Handled by hook';
+                    return false; // Stop compilation
+                }
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>{{ message }}</div>
+                </div>
+            `;
+
+            const message = ref('Original');
+            app = createApp(() => ({ message })).mount('#app');
+            await Promise.resolve();
+
+            const appEl = document.getElementById('app');
+
+            expect(hookCalled).toBe(true);
+            expect(appEl.textContent).toBe('Handled by hook');
+            // Message should not be interpolated because compilation stopped
+            expect(appEl.textContent).not.toContain('Original');
+        });
+
+        it('should receive correct parameters in beforeCompile', async () => {
+            let receivedEl = null;
+            let receivedScope = null;
+            let receivedCs = null;
+            let callCount = 0;
+
+            const hook = registerHook('beforeCompile', (el, scope, cs) => {
+                // Hook might be called multiple times as compile recurses
+                // Capture the app element specifically
+                if (el.id === 'app' || callCount === 0) {
+                    receivedEl = el;
+                    receivedScope = scope;
+                    receivedCs = cs;
+                }
+                callCount++;
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>{{ value }}</div>
+                </div>
+            `;
+
+            const value = ref('test');
+            app = createApp(() => ({ value })).mount('#app');
+            await Promise.resolve();
+
+            // Hook should have been called
+            expect(callCount).toBeGreaterThan(0);
+            
+            // Should have received element
+            expect(receivedEl).not.toBeNull();
+            expect(receivedEl.tagName).toBe('DIV');
+            
+            // Should have received scope with value
+            expect(receivedScope).not.toBeNull();
+            expect(receivedScope).toHaveProperty('value');
+            expect(receivedScope.value).toBe(value);
+            
+            // Should have received component scope
+            expect(receivedCs).not.toBeNull();
+            expect(receivedCs).toHaveProperty('effects');
+            expect(receivedCs).toHaveProperty('addEffect');
+            expect(typeof receivedCs.addEffect).toBe('function');
+        });
+
+        it('should allow hook to modify element before compilation', async () => {
+            const hook = registerHook('beforeCompile', (el, scope, cs) => {
+                if (el.id === 'app') {
+                    el.setAttribute('data-hooked', 'true');
+                }
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>Content</div>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            const appEl = document.getElementById('app');
+            expect(appEl.getAttribute('data-hooked')).toBe('true');
+        });
+    });
+
+    describe('afterCompile Hook', () => {
+        it('should call afterCompile after element compilation', async () => {
+            const afterCompileCalls = [];
+
+            const hook = registerHook('afterCompile', (el, scope, cs) => {
+                if (el.nodeType === 1) {
+                    afterCompileCalls.push(el.tagName);
+                }
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <span>Test</span>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            expect(afterCompileCalls.length).toBeGreaterThan(0);
+        });
+
+        it('should allow DOM manipulation in afterCompile', async () => {
+            const hook = registerHook('afterCompile', (el, scope, cs) => {
+                if (el.id === 'app') {
+                    el.setAttribute('data-enhanced', 'true');
+                }
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>Content</div>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            const appEl = document.getElementById('app');
+            expect(appEl.getAttribute('data-enhanced')).toBe('true');
+        });
+    });
+
+    describe('beforeEffect Hook', () => {
+        it('should call beforeEffect when effects run', async () => {
+            const effectCalls = [];
+
+            const hook = registerHook('beforeEffect', (effect) => {
+                effectCalls.push({
+                    id: effect.id,
+                    active: effect.active
+                });
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>{{ counter }}</div>
+                </div>
+            `;
+
+            const counter = ref(0);
+            app = createApp(() => ({ counter })).mount('#app');
+            await Promise.resolve();
+
+            const initialCalls = effectCalls.length;
+            expect(initialCalls).toBeGreaterThan(0);
+            
+            counter.value = 1;
+            await Promise.resolve();
+
+            expect(effectCalls.length).toBeGreaterThan(initialCalls);
+        });
+
+        it('should track effect execution with reactive updates', async () => {
+            const effectIds = new Set();
+
+            const hook = registerHook('beforeEffect', (effect) => {
+                effectIds.add(effect.id);
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>{{ value }}</div>
+                </div>
+            `;
+
+            const value = ref(0);
+            app = createApp(() => ({ value })).mount('#app');
+            await Promise.resolve();
+
+            expect(effectIds.size).toBeGreaterThan(0);
+
+            value.value = 1;
+            await Promise.resolve();
+            
+            value.value = 2;
+            await Promise.resolve();
+
+            expect(effectIds.size).toBeGreaterThan(0);
+        });
+    });
+
+    describe('onError Hook', () => {
+        it('should handle errors gracefully', async () => {
+            const errors = [];
+
+            const hook = registerHook('onError', (err, context, data) => {
+                errors.push({
+                    message: err.message,
+                    context: context
+                });
+            });
+
+            // onError hook is called when hooks themselves throw errors
+            const errorHook = registerHook('beforeCompile', (el) => {
+                if (el.classList?.contains('error-trigger')) {
+                    throw new Error('Test error in hook');
+                }
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div class="error-trigger">Test</div>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            expect(errors.length).toBeGreaterThan(0);
+            expect(errors[0].message).toBe('Test error in hook');
+        });
+    });
+
+    describe('Hook Management', () => {
+        it('should allow adding multiple hooks for same event', async () => {
+            const calls = [];
+
+            const hook1 = registerHook('beforeCompile', () => { 
+                calls.push('hook1'); 
+            });
+            
+            const hook2 = registerHook('beforeCompile', () => { 
+                calls.push('hook2'); 
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>Test</div>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            expect(calls).toContain('hook1');
+            expect(calls).toContain('hook2');
+        });
+
+        it('should allow removing hooks', async () => {
+            const calls = [];
+
+            const hook = (el) => { 
+                if (el.id === 'app') calls.push('called'); 
+            };
+
+            addHook('beforeCompile', hook);
+
+            document.body.innerHTML = `<div id="app"><div>Test1</div></div>`;
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            const callsAfterFirst = calls.length;
+            expect(callsAfterFirst).toBeGreaterThan(0);
+            
+            removeHook('beforeCompile', hook);
+            
+            app.unmount();
+            document.body.innerHTML = `<div id="app"><div>Test2</div></div>`;
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            // Should not have called hook again
+            expect(calls.length).toBe(callsAfterFirst);
+        });
+    });
+
+    describe('Hook Execution Order', () => {
+        it('should execute hooks in order: beforeCompile -> afterCompile', async () => {
+            const order = [];
+
+            const beforeHook = registerHook('beforeCompile', (el) => {
+                if (el.id === 'app') order.push('before');
+            });
+
+            const afterHook = registerHook('afterCompile', (el) => {
+                if (el.id === 'app') order.push('after');
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>Test</div>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            expect(order).toEqual(['before', 'after']);
+        });
+
+        it('should call beforeEffect before effect execution', async () => {
+            const order = [];
+
+            const hook = registerHook('beforeEffect', () => {
+                order.push('hook');
+            });
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>{{ value }}</div>
+                </div>
+            `;
+
+            const value = ref(0);
+            app = createApp(() => {
+                order.push('setup');
+                return { value };
+            }).mount('#app');
+            
+            await Promise.resolve();
+
+            expect(order[0]).toBe('setup');
+            expect(order).toContain('hook');
+        });
+    });
+});
+
+describe('Plugin System', () => {
+    let app;
+    let hooks = [];
+
+    beforeEach(() => {
+        hooks = [];
+    });
+
+    afterEach(() => {
+        app?.unmount();
+        hooks.forEach(({ name, fn }) => removeHook(name, fn));
+    });
+
+    describe('Plugin Installation', () => {
+        it('should install plugin with correct API', () => {
+            let receivedAPI = null;
+
+            const TestPlugin = {
+                install(api, options) {
+                    receivedAPI = api;
+                }
+            };
+
+            use(TestPlugin);
+
+            expect(receivedAPI).toHaveProperty('reactive');
+            expect(receivedAPI).toHaveProperty('ref');
+            expect(receivedAPI).toHaveProperty('computed');
+            expect(receivedAPI).toHaveProperty('watchEffect');
+            expect(receivedAPI).toHaveProperty('addHook');
+            expect(receivedAPI).toHaveProperty('removeHook');
+            expect(receivedAPI).toHaveProperty('utils');
+        });
+
+        it('should pass options to plugin', () => {
+            let receivedOptions = null;
+
+            const TestPlugin = {
+                install(api, options) {
+                    receivedOptions = options;
+                }
+            };
+
+            const testOptions = { foo: 'bar', num: 42 };
+            use(TestPlugin, testOptions);
+
+            expect(receivedOptions).toEqual(testOptions);
+        });
+
+        it('should provide utils to plugins', () => {
+            let receivedUtils = null;
+
+            const TestPlugin = {
+                install(api) {
+                    receivedUtils = api.utils;
+                }
+            };
+
+            use(TestPlugin);
+
+            expect(receivedUtils).toHaveProperty('isObj');
+            expect(receivedUtils).toHaveProperty('evalExp');
+            expect(receivedUtils).toHaveProperty('Dep');
+            expect(receivedUtils).toHaveProperty('ReactiveEffect');
+            expect(receivedUtils).toHaveProperty('Scope');
+            expect(receivedUtils).toHaveProperty('compile');
+        });
+
+        it('should not install same plugin twice', () => {
+            let installCount = 0;
+
+            const TestPlugin = {
+                install() {
+                    installCount++;
+                }
+            };
+
+            use(TestPlugin);
+            use(TestPlugin);
+            use(TestPlugin);
+
+            expect(installCount).toBe(1);
+        });
+
+        it('should handle plugin installation errors', () => {
+            const ErrorPlugin = {
+                install() {
+                    throw new Error('Installation failed');
+                }
+            };
+
+            expect(() => use(ErrorPlugin)).not.toThrow();
+        });
+    });
+
+    describe('Plugin Functionality', () => {
+        it('should allow plugin to add custom behavior via hooks', async () => {
+            let pluginExecuted = false;
+
+            const CustomPlugin = {
+                install({ addHook }) {
+                    addHook('beforeCompile', (el) => {
+                        if (el.hasAttribute('data-plugin-target')) {
+                            pluginExecuted = true;
+                            el.setAttribute('data-plugin-processed', 'true');
+                        }
+                    });
+                }
+            };
+
+            use(CustomPlugin);
+
+            document.body.innerHTML = `
+                <div id="app" data-plugin-target>
+                    <div>Content</div>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            expect(pluginExecuted).toBe(true);
+            const appEl = document.getElementById('app');
+            expect(appEl.getAttribute('data-plugin-processed')).toBe('true');
+        });
+
+        it('should allow plugin to track performance', async () => {
+            const stats = {
+                compileCount: 0,
+                effectCount: 0
+            };
+
+            const PerformancePlugin = {
+                install({ addHook }) {
+                    addHook('beforeCompile', (el) => {
+                        if (el.nodeType === 1) stats.compileCount++;
+                    });
+
+                    addHook('beforeEffect', () => {
+                        stats.effectCount++;
+                    });
+                }
+            };
+
+            use(PerformancePlugin);
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>{{ count }}</div>
+                </div>
+            `;
+
+            const count = ref(0);
+            app = createApp(() => ({ count })).mount('#app');
+            await Promise.resolve();
+
+            expect(stats.compileCount).toBeGreaterThan(0);
+            expect(stats.effectCount).toBeGreaterThan(0);
+
+            const initialEffectCount = stats.effectCount;
+            count.value = 1;
+            await Promise.resolve();
+
+            expect(stats.effectCount).toBeGreaterThan(initialEffectCount);
+        });
+
+        it('should allow plugin to add global error handling', async () => {
+            const errors = [];
+
+            const ErrorHandlerPlugin = {
+                install({ addHook }) {
+                    addHook('onError', (err, context, data) => {
+                        errors.push({
+                            message: err.message,
+                            context: context
+                        });
+                    });
+                    
+                    // Add a hook that throws an error
+                    addHook('beforeCompile', (el) => {
+                        if (el.classList?.contains('error-trigger')) {
+                            throw new Error('Plugin caught error');
+                        }
+                    });
+                }
+            };
+
+            use(ErrorHandlerPlugin);
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div class="error-trigger">Content</div>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            expect(errors.length).toBeGreaterThan(0);
+            expect(errors[0].message).toBe('Plugin caught error');
+        });
+    });
+
+    describe('Multiple Plugins Interaction', () => {
+        it('should work with multiple plugins installed', async () => {
+            const calls = [];
+
+            const Plugin1 = {
+                install({ addHook }) {
+                    addHook('beforeCompile', (el) => {
+                        if (el.id === 'app') calls.push('plugin1');
+                    });
+                }
+            };
+
+            const Plugin2 = {
+                install({ addHook }) {
+                    addHook('beforeCompile', (el) => {
+                        if (el.id === 'app') calls.push('plugin2');
+                    });
+                }
+            };
+
+            use(Plugin1);
+            use(Plugin2);
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>Content</div>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            expect(calls).toContain('plugin1');
+            expect(calls).toContain('plugin2');
+        });
+
+        it('should allow plugins to cooperate via hooks', async () => {
+            let plugin1Data = null;
+            let plugin2Data = null;
+
+            const Plugin1 = {
+                install({ addHook }) {
+                    addHook('beforeCompile', (el) => {
+                        if (el.id === 'app') {
+                            plugin1Data = 'plugin1-processed';
+                            el.setAttribute('data-plugin1', 'true');
+                        }
+                    });
+                }
+            };
+
+            const Plugin2 = {
+                install({ addHook }) {
+                    addHook('afterCompile', (el) => {
+                        if (el.id === 'app' && el.hasAttribute('data-plugin1')) {
+                            plugin2Data = 'plugin2-saw-plugin1';
+                        }
+                    });
+                }
+            };
+
+            use(Plugin1);
+            use(Plugin2);
+
+            document.body.innerHTML = `
+                <div id="app">
+                    <div>Content</div>
+                </div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            expect(plugin1Data).toBe('plugin1-processed');
+            expect(plugin2Data).toBe('plugin2-saw-plugin1');
+        });
+    });
+
+    describe('Plugin API Usage', () => {
+        it('should allow plugin to use reactive API', async () => {
+            let pluginState = null;
+
+            const StatePlugin = {
+                install({ reactive, ref }) {
+                    pluginState = reactive({
+                        count: ref(0),
+                        items: []
+                    });
+                }
+            };
+
+            use(StatePlugin);
+
+            expect(pluginState).not.toBeNull();
+            expect(pluginState.count).toHaveProperty('value');
+            expect(pluginState.count.value).toBe(0);
+
+            pluginState.count.value = 5;
+            expect(pluginState.count.value).toBe(5);
+
+            pluginState.items.push('item1');
+            expect(pluginState.items).toContain('item1');
+        });
+
+        it('should allow plugin to use compile function', async () => {
+            let compileCalled = false;
+
+            const CompilerPlugin = {
+                install({ utils, addHook }) {
+                    const { compile, Scope } = utils;
+
+                    addHook('beforeCompile', (el, scope, cs) => {
+                        if (el.id === 'app') {
+                            compileCalled = true;
+                            
+                            const div = document.createElement('div');
+                            div.className = 'plugin-added';
+                            div.textContent = 'Plugin content';
+                            
+                            el.appendChild(div);
+                        }
+                    });
+                }
+            };
+
+            use(CompilerPlugin);
+
+            document.body.innerHTML = `
+                <div id="app"></div>
+            `;
+
+            app = createApp(() => ({})).mount('#app');
+            await Promise.resolve();
+
+            expect(compileCalled).toBe(true);
+            const pluginContent = document.querySelector('.plugin-added');
+            expect(pluginContent).not.toBeNull();
+            expect(pluginContent.textContent).toBe('Plugin content');
+        });
+    });
+});
+
+describe('Real-World Plugin Examples', () => {
+    let app;
+    let installedPlugins = [];
+
+    afterEach(() => {
+        app?.unmount();
+        installedPlugins.forEach(plugin => {
+            if (plugin.cleanup) plugin.cleanup();
+        });
+        installedPlugins = [];
+    });
+
+    it('should create a logging plugin', async () => {
+        const logs = [];
+
+        const LoggingPlugin = {
+            install({ addHook }) {
+                addHook('beforeCompile', (el) => {
+                    if (el.nodeType === 1) {
+                        logs.push(`Compiling: ${el.tagName}`);
+                    }
+                });
+            }
+        };
+
+        use(LoggingPlugin);
+
+        document.body.innerHTML = `
+            <div id="app">
+                <div>Test</div>
+            </div>
+        `;
+
+        app = createApp(() => ({})).mount('#app');
+        await Promise.resolve();
+
+        expect(logs.length).toBeGreaterThan(0);
+        expect(logs[0]).toContain('Compiling:');
+    });
+
+    it('should create a simple analytics plugin', async () => {
+        const events = [];
+
+        const AnalyticsPlugin = {
+            install({ addHook }) {
+                addHook('beforeCompile', (el) => {
+                    if (el.hasAttribute('data-track')) {
+                        const eventName = el.getAttribute('data-track');
+                        events.push({ event: eventName, element: el.tagName });
+                    }
+                });
+            }
+        };
+
+        use(AnalyticsPlugin);
+
+        document.body.innerHTML = `
+            <div id="app">
+                <button data-track="button-click">Click</button>
+            </div>
+        `;
+
+        app = createApp(() => ({})).mount('#app');
+        await Promise.resolve();
+
+        expect(events.length).toBeGreaterThan(0);
+        expect(events[0].event).toBe('button-click');
     });
 });

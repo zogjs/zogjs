@@ -1,5 +1,5 @@
 /**
- * Zog.js v0.2.7 - Full reactivity with minimal code size
+ * Zog.js v0.3.0 - Full reactivity with minimal code size + Hook System
  */
 
 // --- Reactivity Core ---
@@ -55,6 +55,7 @@ class ReactiveEffect {
         try {
             effectStack.push(this);
             activeEffect = this;
+            runHooks('beforeEffect', this);
             return this.fn();
         } finally {
             effectStack.pop();
@@ -196,8 +197,35 @@ const evalExp = (exp, scope) => {
     } catch { return undefined; }
 };
 
+// --- Hook System ---
+const hooks = {
+    beforeCompile: [],
+    afterCompile: [],
+    beforeEffect: [],
+    onError: []
+};
+
+export const addHook = (name, fn) => {
+    if (!hooks[name]) hooks[name] = [];
+    hooks[name].push(fn);
+};
+
+export const removeHook = (name, fn) => {
+    if (hooks[name]) hooks[name] = hooks[name].filter(h => h !== fn);
+};
+
+const runHooks = (name, ...args) => {
+    if (!hooks[name]) return false;
+    try {
+        return hooks[name].some(fn => fn(...args) === false);
+    } catch (err) {
+        runHooks('onError', err, name, args);
+        return false;
+    }
+};
+
 // --- Compiler ---
-const compile = (el, scope, cs) => {
+export const compile = (el, scope, cs) => {
     if (!el) return;
 
     if (el.nodeType === 3) {
@@ -206,6 +234,9 @@ const compile = (el, scope, cs) => {
         return;
     }
     if (el.nodeType !== 1) return;
+
+    // Run beforeCompile hooks - if any returns false, stop compilation
+    if (runHooks('beforeCompile', el, scope, cs)) return;
 
     // z-if
     if (el.hasAttribute('z-if')) {
@@ -244,6 +275,7 @@ const compile = (el, scope, cs) => {
             });
         }));
         cs.addEffect(() => branches.forEach(b => b.scope?.cleanup()));
+        runHooks('afterCompile', el, scope, cs);
         return;
     }
 
@@ -303,6 +335,7 @@ const compile = (el, scope, cs) => {
 
         cs.addEffect(watchEffect(updateList));
         cs.addEffect(() => { for (const item of itemsMap.values()) item.scope.cleanup(); itemsMap.clear(); });
+        runHooks('afterCompile', el, scope, cs);
         return;
     }
 
@@ -314,7 +347,7 @@ const compile = (el, scope, cs) => {
             const fn = e => {
                 const handler = scope[value];
                 if (typeof handler === 'function') handler(e);
-                else try { Function(...Object.keys(scope), 'e', `"use strict";${value}`)(...Object.values(scope), e); } catch (err) { console.error?.('Event error:', err); }
+                else try { Function(...Object.keys(scope), 'e', `"use strict";${value}`)(...Object.values(scope), e); } catch (err) { console.error?.('Event error:', err); runHooks('onError', err, 'event', { name, value }); }
             };
             el.addEventListener(ev, fn);
             cs.addListener(el, ev, fn);
@@ -360,6 +393,7 @@ const compile = (el, scope, cs) => {
     }
 
     [...el.childNodes].forEach(child => compile(child, scope, cs));
+    runHooks('afterCompile', el, scope, cs);
 };
 
 // --- Plugin System ---
@@ -370,8 +404,15 @@ export const use = (plugin, options = {}) => {
     if (typeof plugin.install !== 'function') { console.error?.('Plugin must have an install method:', plugin); return; }
     installedPlugins.add(plugin);
     try {
-        plugin.install({ reactive, ref, computed, watchEffect, createApp, utils: { isObj, evalExp, Dep, ReactiveEffect } }, options);
-    } catch (err) { console.error?.('Plugin installation failed:', plugin, err); }
+        plugin.install({ 
+            reactive, ref, computed, watchEffect, createApp, 
+            addHook, removeHook,
+            utils: { isObj, evalExp, Dep, ReactiveEffect, Scope, compile }
+        }, options);
+    } catch (err) { 
+        console.error?.('Plugin installation failed:', plugin, err); 
+        runHooks('onError', err, 'plugin', plugin);
+    }
 };
 
 export const nextTick = fn => Promise.resolve().then(fn);
