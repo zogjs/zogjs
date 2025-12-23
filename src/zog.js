@@ -1,5 +1,6 @@
 /**
- * Zog.js v0.3.2 - Full reactivity with minimal code size + Hook System
+ * Zog.js v0.4.1 - Full reactivity with minimal code size + Hook System
+ * Fixes: error handling, z-for index bug, beforeEffect hook
  */
 
 // --- Reactivity Core ---
@@ -32,11 +33,14 @@ const queueEffect = effect => {
 
 const flushEffects = () => {
     try {
-        effectQueue.sort((a, b) => (a.id || 0) - (b.id || 0));
-        for (const effect of effectQueue) {
-            if (effect.active) try { effect.run(); } catch (e) { console.error?.('Effect error:', e); }
+        for (let i = 0; i < effectQueue.length; i++) {
+            const e = effectQueue[i];
+            if (e.active) try { e.run(); } catch (err) { console.error?.('Effect error:', err); runHooks('onError', err, 'effect', e); }
         }
-    } finally { effectQueue = []; isFlushing = false; }
+    } finally {
+        effectQueue.length = 0;
+        isFlushing = false;
+    }
 };
 
 let effectId = 0;
@@ -59,15 +63,18 @@ class ReactiveEffect {
             return this.fn();
         } finally {
             effectStack.pop();
-            activeEffect = effectStack.at(-1) || null;
+            activeEffect = effectStack[effectStack.length - 1] || null;
+        }
+    }
+    stop() {
+        if (this.active) {
+            this.cleanup();
+            this.active = false;
         }
     }
     cleanup() {
         for (const dep of this.deps) dep.subs.delete(this);
-        this.deps = [];
-    }
-    stop() {
-        if (this.active) { this.cleanup(); this.active = false; }
+        this.deps.length = 0;
     }
 }
 
@@ -83,7 +90,7 @@ const reactiveMap = new WeakMap();
 const isObj = v => v && typeof v === 'object';
 
 const arrayMutators = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill', 'copyWithin']);
-const arrayIterators = new Set(['includes', 'indexOf', 'lastIndexOf', 'find', 'findIndex', 'some', 'every', 'filter', 'map', 'forEach', 'reduce', 'reduceRight', 'flat', 'flatMap', 'join', 'slice', 'concat']);
+const arrayIterators = new Set(['includes', 'indexOf', 'lastIndexOf', 'find', 'findIndex', 'findLast', 'findLastIndex', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'flat', 'flatMap', 'values', 'entries', 'keys', Symbol.iterator]);
 
 export const reactive = target => {
     if (!isObj(target) || target[IS_REACTIVE]) return target;
@@ -101,15 +108,21 @@ export const reactive = target => {
         return function (...args) {
             const raw = this[RAW];
 
-            // Track for iterators
-            if (isIter) { iterationDep.depend(); getDep('length').depend(); }
+            // Track iteration
+            if (!isMut && isIter) iterationDep.depend();
 
-            // Execute: mutators on raw, others on proxy
-            const res = isMut
-                ? raw[method].apply(raw, args.map(a => isObj(a) && a[IS_REACTIVE] ? a[RAW] : a))
-                : Array.prototype[method].apply(this, args);
+            let res;
+            if (method === 'includes' || method === 'indexOf' || method === 'lastIndexOf') {
+                const dep = getDep('length');
+                dep.depend();
+                for (let i = 0; i < raw.length; i++) getDep(String(i)).depend();
+                const targetVal = args[0];
+                const wrapped = targetVal && targetVal[RAW] ? targetVal[RAW] : targetVal;
+                res = Array.prototype[method].call(raw, wrapped, ...args.slice(1));
+            } else {
+                res = Array.prototype[method].apply(raw, args);
+            }
 
-            // Notify for mutations
             if (isMut) {
                 iterationDep.notify();
                 getDep('length').notify();
@@ -124,50 +137,64 @@ export const reactive = target => {
     const arrayMethods = isArray ? Object.fromEntries([...arrayMutators, ...arrayIterators].map(m => [m, createArrayMethod(m)])) : null;
 
     const proxy = new Proxy(target, {
-        get: (t, k, r) => {
-            if (k === IS_REACTIVE) return true;
+        get(t, k, r) {
             if (k === RAW) return t;
-            if (isArray && arrayMethods?.[k]) return arrayMethods[k].bind(r);
-            if (isArray && k === 'length') { getDep('length').depend(); iterationDep.depend(); return t.length; }
-            if (k === Symbol.iterator) {
-                iterationDep.depend();
-                return function* () { for (let i = 0; i < t.length; i++) yield isObj(t[i]) ? reactive(t[i]) : t[i]; };
-            }
-            getDep(k).depend();
+            if (k === IS_REACTIVE) return true;
+            if (isArray && arrayMethods && k in arrayMethods) return arrayMethods[k];
+
+            const dep = getDep(k);
+            dep.depend();
             const res = Reflect.get(t, k, r);
-            return res?._isRef ? res : isObj(res) ? reactive(res) : res;
+            return isObj(res) ? (res[IS_REACTIVE] ? res : reactive(res)) : res;
         },
-        set: (t, k, v, r) => {
-            const old = t[k], numKey = Number(k);
-            const hadKey = isArray ? Number.isInteger(numKey) && numKey >= 0 && numKey < t.length : Object.hasOwn(t, k);
-            const rawValue = isObj(v) && v[IS_REACTIVE] ? v[RAW] : v;
-            const res = Reflect.set(t, k, rawValue, r);
-            if (!Object.is(old, rawValue)) {
-                getDep(k).notify();
-                if (!hadKey || (isArray && k === 'length')) { iterationDep.notify(); if (isArray) getDep('length').notify(); }
+        set(t, k, v, r) {
+            const old = t[k];
+            const hadKey = Object.prototype.hasOwnProperty.call(t, k);
+            const res = Reflect.set(t, k, v, r);
+            if (!hadKey || !Object.is(old, v)) {
+                const dep = getDep(k);
+                dep.notify();
+                if (isArray && (k === 'length' || String(+k) === k)) iterationDep.notify();
             }
             return res;
         },
-        deleteProperty: (t, k) => {
-            const had = k in t, res = Reflect.deleteProperty(t, k);
-            if (had) { getDep(k).notify(); iterationDep.notify(); }
+        deleteProperty(t, k) {
+            const hadKey = Object.prototype.hasOwnProperty.call(t, k);
+            const res = Reflect.deleteProperty(t, k);
+            if (hadKey) {
+                const dep = getDep(k);
+                dep.notify();
+                if (isArray) iterationDep.notify();
+            }
             return res;
         },
-        ownKeys: t => { iterationDep.depend(); return Reflect.ownKeys(t); },
-        has: (t, k) => { iterationDep.depend(); getDep(k).depend(); return Reflect.has(t, k); }
+        ownKeys(t) {
+            iterationDep.depend();
+            return Reflect.ownKeys(t);
+        },
+        has(t, k) {
+            const dep = getDep(k);
+            dep.depend();
+            return Reflect.has(t, k);
+        }
     });
 
     reactiveMap.set(target, proxy);
     return proxy;
 };
 
+// --- ref / computed ---
 export const ref = val => {
+    let v = isObj(val) && !val[IS_REACTIVE] ? reactive(val) : val;
     const dep = new Dep();
     return {
         _isRef: true,
-        get value() { dep.depend(); return val; },
-        set value(v) { if (!Object.is(v, val)) { val = v; dep.notify(); } },
-        toString: () => String(val)
+        get value() { dep.depend(); return v; },
+        set value(nv) {
+            const next = isObj(nv) && !nv[IS_REACTIVE] ? reactive(nv) : nv;
+            if (!Object.is(next, v)) { v = next; dep.notify(); }
+        },
+        toString: () => String(v)
     };
 };
 
@@ -188,14 +215,16 @@ class Scope {
     addEffect(stop) { this.effects.push(stop); }
     addListener(el, ev, fn) { this.listeners.push({ el, ev, fn }); }
     cleanup() {
-        this.effects.forEach(s => s());
+        this.effects.forEach(stop => stop && stop());
+        this.effects.length = 0;
         this.listeners.forEach(({ el, ev, fn }) => el.removeEventListener(ev, fn));
-        this.effects = []; this.listeners = [];
+        this.listeners.length = 0;
     }
 }
 
-// --- Expression Evaluator ---
+// --- Expression Eval with Caching ---
 const expCache = new Map();
+
 const evalExp = (exp, scope) => {
     try {
         const keys = Object.keys(scope);
@@ -224,7 +253,8 @@ export const addHook = (name, fn) => {
 };
 
 export const removeHook = (name, fn) => {
-    if (hooks[name]) hooks[name] = hooks[name].filter(h => h !== fn);
+    if (!hooks[name]) return;
+    hooks[name] = hooks[name].filter(h => h !== fn);
 };
 
 const runHooks = (name, ...args) => {
@@ -243,15 +273,21 @@ export const compile = (el, scope, cs) => {
 
     if (el.nodeType === 3) {
         const txt = el.textContent;
-        if (txt.includes('{{')) cs.addEffect(watchEffect(() => { el.textContent = txt.replace(/{{\s*(.*?)\s*}}/g, (_, e) => evalExp(e, scope) ?? ''); }));
+        if (!txt || !txt.includes('{{')) return;
+        const original = txt;
+        cs.addEffect(watchEffect(() => {
+            el.textContent = original.replace(/{{\s*(.*?)\s*}}/g, (_, e) => {
+                const res = evalExp(e, scope);
+                return res == null ? '' : res;
+            });
+        }));
         return;
     }
     if (el.nodeType !== 1) return;
 
-    // Run beforeCompile hooks - if any returns false, stop compilation
     if (runHooks('beforeCompile', el, scope, cs)) return;
 
-    // z-if
+    // z-if / z-else-if / z-else
     if (el.hasAttribute('z-if')) {
         const branches = [], parent = el.parentNode;
         if (!parent) return;
@@ -266,27 +302,32 @@ export const compile = (el, scope, cs) => {
             curr.removeAttribute(type);
             branches.push({ template: curr.cloneNode(true), exp, type, el: null, scope: null });
             const next = curr.nextElementSibling;
-            curr.remove();
+            parent.removeChild(curr);
             curr = next;
         }
 
-        cs.addEffect(watchEffect(() => {
-            const match = branches.find(b => b.type === 'z-else' || evalExp(b.exp, scope));
+        const update = () => {
+            let chosen = null;
+            for (const b of branches) {
+                if (b.type === 'z-else' || evalExp(b.exp, scope)) { chosen = b; break; }
+            }
+
             branches.forEach(b => {
-                if (b === match) {
-                    if (!b.el?.parentNode) {
-                        b.scope?.cleanup();
+                if (b === chosen) {
+                    if (!b.el) {
                         b.el = b.template.cloneNode(true);
                         b.scope = new Scope({ ...scope });
-                        parent.insertBefore(b.el, ph);
+                        parent.insertBefore(b.el, ph.nextSibling);
                         compile(b.el, b.scope.data, b.scope);
                     }
                 } else {
-                    b.el?.parentNode && b.el.remove();
-                    b.scope?.cleanup(); b.scope = null; b.el = null;
+                    if (b.el?.parentNode) b.el.parentNode.removeChild(b.el);
+                    if (b.scope) { b.scope.cleanup(); b.scope = null; b.el = null; }
                 }
             });
-        }));
+        };
+
+        cs.addEffect(watchEffect(update));
         cs.addEffect(() => branches.forEach(b => b.scope?.cleanup()));
         runHooks('afterCompile', el, scope, cs);
         return;
@@ -301,7 +342,10 @@ export const compile = (el, scope, cs) => {
         let itemName = 'item', indexName = 'index', listExp = rawFor;
 
         if (forMatch) { itemName = forMatch[1] || forMatch[3]; indexName = forMatch[2] || 'index'; listExp = forMatch[4]; }
-        else { const p = rawFor.split(/\s+(?:in|of)\s+/); if (p.length === 2) { itemName = p[0].trim(); listExp = p[1].trim(); } }
+        else {
+            const p = rawFor.split(/\s+(?:in|of)\s+/);
+            if (p.length === 2) { itemName = p[0].trim(); listExp = p[1].trim(); }
+        }
 
         const parent = el.parentNode;
         if (!parent) return;
@@ -322,7 +366,6 @@ export const compile = (el, scope, cs) => {
 
             const newItemsMap = new Map(), newKeys = [];
             arr.forEach((v, i) => {
-                // Fixed: indexName is now plain number (not ref)
                 const key = '_' + (keyAttr ? evalExp(keyAttr, { ...scope, [itemName]: { _isRef: true, value: v }, [indexName]: i }) : i);
                 newKeys.push(key);
                 const existing = itemsMap.get(key);
@@ -330,10 +373,10 @@ export const compile = (el, scope, cs) => {
 
                 if (existing) {
                     existing.itemRef.value = val;
-                    existing.indexRef = i;
+                    existing.indexRef.value = i;
                     newItemsMap.set(key, existing);
                 } else {
-                    const clone = el.cloneNode(true), itemRef = ref(val), indexRef = i;
+                    const clone = el.cloneNode(true), itemRef = ref(val), indexRef = ref(i);
                     const s = new Scope({ ...scope, [itemName]: itemRef, [indexName]: indexRef });
                     compile(clone, s.data, s);
                     newItemsMap.set(key, { clone, scope: s, itemRef, indexRef });
@@ -365,7 +408,17 @@ export const compile = (el, scope, cs) => {
             const fn = e => {
                 const handler = scope[value];
                 if (typeof handler === 'function') handler(e);
-                else try { Function(...Object.keys(scope), 'e', `"use strict";${value}`)(...Object.values(scope), e); } catch (err) { console.error?.('Event error:', err); runHooks('onError', err, 'event', { name, value }); }
+                else try {
+                    const keys = Object.keys(scope);
+                    const args = keys.map(k => {
+                        const v = scope[k];
+                        return v && v._isRef ? v.value : v;
+                    });
+                    Function(...keys, 'e', `"use strict";${value}`)(...args, e);
+                } catch (err) {
+                    console.error?.('Event error:', err);
+                    runHooks('onError', err, 'event', { name, value });
+                }
             };
             el.addEventListener(ev, fn);
             cs.addListener(el, ev, fn);
@@ -386,7 +439,7 @@ export const compile = (el, scope, cs) => {
                 el.type === 'radio' ? el.checked = String(el.value) === String(res) : el[prop] = res;
             }));
         }
-        else if (name.startsWith(':') || name.startsWith('z-')) {
+        else if (name === 'z-text' || name === 'z-html' || name === 'z-show' || name.startsWith(':') || name.startsWith('z-')) {
             const attr = name[0] === ':' ? name.slice(1) : name;
             el.removeAttribute(name);
             const staticClass = attr === 'class' ? (el.getAttribute('class') || '') : '';
@@ -414,7 +467,6 @@ export const compile = (el, scope, cs) => {
     runHooks('afterCompile', el, scope, cs);
 };
 
-
 export const nextTick = fn => Promise.resolve().then(fn);
 
 // --- App ---
@@ -425,29 +477,29 @@ export const createApp = setup => {
     return {
         use(plugin, options = {}) {
             if (appContext.plugins.has(plugin)) return this;
-            if (typeof plugin.install !== 'function') { console.error?.('Plugin must have an install method'); return this; }
+            if (typeof plugin.install !== 'function') { console.error?.('Plugin must have an install(app, options) method'); return this; }
+            plugin.install(this, options);
             appContext.plugins.add(plugin);
-            let pluginApi = null;
-            try {
-                pluginApi = plugin.install({
-                    reactive, ref, computed, watchEffect, createApp,
-                    addHook, removeHook,
-                    utils: { isObj, evalExp, Dep, ReactiveEffect, Scope, compile }
-                }, options);
-            } catch (err) {
-                console.error?.('Plugin installation failed:', err);
-                runHooks('onError', err, 'plugin', plugin);
-            }
-            return pluginApi || this;
-        },
-        mount(sel) {
-            const root = document.querySelector(sel);
-            if (!root) return console.error(`Target not found: ${sel}`);
-            const data = setup();
-            rootScope = new Scope(data);
-            compile(root, data, rootScope);
             return this;
         },
-        unmount() { if (rootScope) { rootScope.cleanup(); rootScope = null; } }
+        mount(root) {
+            const el = typeof root === 'string' ? document.querySelector(root) : root;
+            if (!el) { console.error?.('Root element not found:', root); return; }
+
+            const data = (setup && setup()) || {};
+            rootScope = new Scope(data);
+            try {
+                compile(el, rootScope.data, rootScope);
+            } catch (err) {
+                console.error?.('Compile error:', err);
+                runHooks('onError', err, 'compile', { el, scope: rootScope });
+            }
+            return this;
+        },
+        unmount() {
+            if (!rootScope) return;
+            rootScope.cleanup();
+            rootScope = null;
+        }
     };
 };
