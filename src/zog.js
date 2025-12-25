@@ -1,5 +1,5 @@
 /**
- * Zog.js v0.4.7 - Minimal reactive framework
+ * Zog.js v0.4.8 - Minimal reactive framework
  * 
  * A lightweight Vue-inspired reactive framework for small to medium projects.
  * Provides reactivity, template binding, and directives without build steps.
@@ -684,7 +684,14 @@ export const onHook = (name, fn) => (hooks[name] = hooks[name] || []).push(fn);
  * @param {string} name - Hook name
  * @param {...*} args - Arguments to pass to hooks
  */
-const runHooks = (name, ...args) => hooks[name]?.forEach(fn => fn(...args));
+const runHooks = (name, ...args) => {
+    const list = hooks[name];
+    if (!list) return;
+    for (const fn of list) {
+        try { if (fn(...args) === false) return false; }
+        catch (err) { console.error?.(`Hook error (${name}):`, err); }
+    }
+};
 
 // =============================================================================
 // TEMPLATE COMPILER
@@ -711,7 +718,7 @@ const runHooks = (name, ...args) => hooks[name]?.forEach(fn => fn(...args));
  */
 const compile = (el, scope, cs) => {
     // Run beforeCompile hooks (plugins can modify elements)
-    runHooks('beforeCompile', el, scope, cs);
+    if (runHooks('beforeCompile', el, scope, cs) === false) return;
     
     // -------------------------------------------------------------------------
     // TEXT NODE - Handle {{ expression }} interpolation
