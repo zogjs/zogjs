@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ref, reactive, computed, watchEffect, nextTick } from '../src/zog.js';
+import { ref, reactive, computed, watchEffect, nextTick, createApp } from '../src/zog.js';
 
 describe('Reactivity System', () => {
     describe('ref()', () => {
@@ -488,5 +488,80 @@ describe('Reactivity System', () => {
             count.value = NaN;
             expect(callCount).toBe(1); // NaN === NaN with Object.is
         });
+    });
+});
+
+
+describe('z-model with Radio Buttons', () => {
+    it('should bind radio button value correctly', async () => {
+        document.body.innerHTML = `
+           <div id="app"> <input type="radio" name="color" value="red" z-model="selected">
+            <input type="radio" name="color" value="green" z-model="selected">
+            <input type="radio" name="color" value="blue" z-model="selected">
+            <span class="result">{{ selected }}</span></div>
+        `;
+
+        let selected;
+        const app = createApp(() => {
+            selected = ref('green');
+            return { selected };
+        });
+        app.mount('#app');
+
+        const radios = document.querySelectorAll('input[type="radio"]');
+        const result = document.querySelector('.result');
+
+        // Initial state: green should be checked
+        expect(radios[0].checked).toBe(false);
+        expect(radios[1].checked).toBe(true);
+        expect(radios[2].checked).toBe(false);
+        expect(result.textContent).toBe('green');
+
+        // Click red radio
+        radios[0].click();
+        radios[0].dispatchEvent(new Event('change'));
+        await nextTick();
+
+        expect(selected.value).toBe('red');
+        expect(radios[0].checked).toBe(true);
+        expect(result.textContent).toBe('red');
+
+        // Click blue radio
+        radios[2].click();
+        radios[2].dispatchEvent(new Event('change'));
+        await nextTick();
+
+        expect(selected.value).toBe('blue');
+        expect(radios[2].checked).toBe(true);
+        expect(result.textContent).toBe('blue');
+    });
+
+    it('should update radio when ref changes programmatically', async () => {
+        document.body.innerHTML = `
+            <div id="app">
+                <input type="radio" name="size" value="sm" z-model="size">
+                <input type="radio" name="size" value="md" z-model="size">
+                <input type="radio" name="size" value="lg" z-model="size">
+            </div>
+        `;
+
+        let size;
+        const app = createApp(() => {
+            size = ref('sm');
+            return { size };
+        });
+        app.mount('#app');
+
+        const radios = document.querySelectorAll('input[type="radio"]');
+
+        expect(radios[0].checked).toBe(true);
+
+        // Change ref programmatically
+        size.value = 'lg';
+        await nextTick();
+
+        expect(radios[0].checked).toBe(false);
+        expect(radios[1].checked).toBe(false);
+        expect(radios[2].checked).toBe(true);
     });
 });
