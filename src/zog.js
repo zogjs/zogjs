@@ -1026,11 +1026,13 @@ const compile = (el, scope, cs) => {
             // Update model when input changes
             const fn = () => {
                 if (el.type === 'radio' && !el.checked) return;
+                const val = el.type === 'radio' ? el.value : el[prop];  // ✅ اضافه شد
+
                 
                 if (scope[value]?._isRef) {
-                    scope[value].value = el[prop];
+                    scope[value].value = val;
                 } else {
-                    evalExp(value + '=_v', { ...scope, _v: el[prop] });
+                    evalExp(value + '=_v', { ...scope, _v: val });
                 }
             };
             

@@ -1,17 +1,17 @@
 {
   "name": "zogjs",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "MiniVue: A minimal reactive framework inspired by Vue.js",
   "type": "module",
   "files": [
     "dist"
   ],
-  "main": "./dist/0.4.8/zog.js",
-  "module": "./dist/0.4.8/zog.js",
+  "main": "./dist/0.4.9/zog.js",
+  "module": "./dist/0.4.9/zog.js",
   "exports": {
     ".": {
-      "import": "./dist/0.4.8/zog.js",
-      "types": "./dist/0.4.8/zog.d.ts"
+      "import": "./dist/0.4.9/zog.js",
+      "types": "./dist/0.4.9/zog.d.ts"
     }
   },
   "repository": {
