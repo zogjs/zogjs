@@ -22,9 +22,9 @@ export default defineConfig({
     },
     lib: {
       entry: resolve(__dirname, 'src/zog.js'),
-      name: 'ZogLibrary',
-      formats: ['es'], // فقط ES format
-      fileName: () => 'zog.js'
+      name: 'Zog',
+      formats: ['es','umd', 'iife'],
+      fileName: () => 'zog.[format].js'
     },
   },
 });
